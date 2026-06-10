@@ -102,6 +102,7 @@ await send("Emulation.setDeviceMetricsOverride", {
 });
 await send("Page.navigate", { url: homeUrl });
 await waitFor(`document.querySelectorAll(".recipe-card").length >= 6`);
+await waitFor(`Boolean(document.querySelector(".shader-shell canvas"))`, 20000);
 
 const desktopSummary = await evaluate(`({
   title: document.title,
