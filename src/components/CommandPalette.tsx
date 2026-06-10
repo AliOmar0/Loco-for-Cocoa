@@ -2,6 +2,7 @@ import { ArrowRight, Clock3, Search, X } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { dessertHeroImage } from "../lib/assets";
 import type { Recipe } from "../types";
 
 type CommandPaletteProps = {
@@ -85,7 +86,7 @@ export function CommandPalette({
                     src={recipe.image}
                     alt=""
                     onError={(event) => {
-                      event.currentTarget.src = "/assets/dessert-hero.png";
+                      event.currentTarget.src = dessertHeroImage;
                     }}
                   />
                   <div>

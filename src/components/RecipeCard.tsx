@@ -5,6 +5,7 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
+import { dessertHeroImage } from "../lib/assets";
 import type { Recipe } from "../types";
 import { categoryLabels, moodLabels } from "../lib/recipe";
 
@@ -53,54 +54,62 @@ export function RecipeCard({
         y.set(0);
       }}
     >
-      <button className="card-hit-area" onClick={onOpen} aria-label={`Open ${recipe.title}`} />
-      <div className="recipe-image">
-        <img
-          src={recipe.image}
-          alt=""
-          loading="lazy"
-          onError={(event) => {
-            event.currentTarget.src = "/assets/dessert-hero.png";
-          }}
-        />
-        <div
-          className="recipe-color-wash"
-          style={{
-            background: `linear-gradient(135deg, ${recipe.accent[0]}22, ${recipe.accent[1]}66)`,
-          }}
-        />
-        <span className="recipe-number">{String(index + 1).padStart(2, "0")}</span>
+      <div className="recipe-card-surface">
         <button
-          className={`favorite-control ${favorite ? "is-favorite" : ""}`}
-          onClick={(event) => {
-            event.stopPropagation();
-            onFavorite();
-          }}
-          aria-label={favorite ? "Remove from saved recipes" : "Save recipe"}
-        >
-          <Heart size={18} fill={favorite ? "currentColor" : "none"} />
-        </button>
-        <span className="recipe-mood">{moodLabels[recipe.mood]}</span>
-      </div>
-      <div className="recipe-card-copy">
-        <div className="recipe-eyebrow">
-          <span>{categoryLabels[recipe.category]}</span>
-          <span>
-            <Clock3 size={13} />
-            {recipe.time} min
+          className="card-hit-area"
+          onClick={onOpen}
+          aria-label={`Open ${recipe.title}`}
+        />
+        <div className="recipe-image">
+          <img
+            src={recipe.image}
+            alt=""
+            loading="lazy"
+            onError={(event) => {
+              event.currentTarget.src = dessertHeroImage;
+            }}
+          />
+          <div
+            className="recipe-color-wash"
+            style={{
+              background: `linear-gradient(135deg, ${recipe.accent[0]}22, ${recipe.accent[1]}66)`,
+            }}
+          />
+          <span className="recipe-number">
+            {String(index + 1).padStart(2, "0")}
           </span>
+          <button
+            className={`favorite-control ${favorite ? "is-favorite" : ""}`}
+            onClick={(event) => {
+              event.stopPropagation();
+              onFavorite();
+            }}
+            aria-label={favorite ? "Remove from saved recipes" : "Save recipe"}
+          >
+            <Heart size={18} fill={favorite ? "currentColor" : "none"} />
+          </button>
+          <span className="recipe-mood">{moodLabels[recipe.mood]}</span>
         </div>
-        <h3>{recipe.title}</h3>
-        <p>{recipe.subtitle}</p>
-        <div className="recipe-card-footer">
-          <span className="rating">
-            <Star size={13} fill="currentColor" />
-            {recipe.rating}
-          </span>
-          <span className="open-label">
-            Open recipe
-            <ArrowUpRight size={16} />
-          </span>
+        <div className="recipe-card-copy">
+          <div className="recipe-eyebrow">
+            <span>{categoryLabels[recipe.category]}</span>
+            <span>
+              <Clock3 size={13} />
+              {recipe.time} min
+            </span>
+          </div>
+          <h3>{recipe.title}</h3>
+          <p>{recipe.subtitle}</p>
+          <div className="recipe-card-footer">
+            <span className="rating">
+              <Star size={13} fill="currentColor" />
+              {recipe.rating}
+            </span>
+            <span className="open-label">
+              Open recipe
+              <ArrowUpRight size={16} />
+            </span>
+          </div>
         </div>
       </div>
     </motion.article>

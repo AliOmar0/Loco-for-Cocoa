@@ -27,6 +27,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
+import { dessertHeroImage } from "../lib/assets";
 import { categoryLabels, moodLabels, slugify } from "../lib/recipe";
 import { useRecipeStore } from "../store/useRecipeStore";
 import type { Recipe, RecipeCategory, RecipeMood } from "../types";
@@ -72,7 +73,7 @@ const blankRecipe = (): RecipeFormData => ({
   time: 45,
   difficulty: "Easy",
   servings: 8,
-  image: "/assets/dessert-hero.png",
+  image: dessertHeroImage,
   ingredients: [{ value: "" }, { value: "" }, { value: "" }],
   steps: [{ text: "", duration: undefined }, { text: "", duration: undefined }],
   notes: "",
@@ -472,10 +473,10 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
               <article className="preview-card">
                 <div className="preview-image">
                   <img
-                    src={values.image || "/assets/dessert-hero.png"}
+                    src={values.image || dessertHeroImage}
                     alt=""
                     onError={(event) => {
-                      event.currentTarget.src = "/assets/dessert-hero.png";
+                      event.currentTarget.src = dessertHeroImage;
                     }}
                   />
                   <div
@@ -644,7 +645,7 @@ function PerformanceView({ recipes }: { recipes: Recipe[] }) {
               src={topRecipe.image}
               alt=""
               onError={(event) => {
-                event.currentTarget.src = "/assets/dessert-hero.png";
+                event.currentTarget.src = dessertHeroImage;
               }}
             />
             <div className="performance-feature-shade" />
@@ -699,7 +700,7 @@ function PerformanceView({ recipes }: { recipes: Recipe[] }) {
                 src={recipe.image}
                 alt=""
                 onError={(event) => {
-                  event.currentTarget.src = "/assets/dessert-hero.png";
+                  event.currentTarget.src = dessertHeroImage;
                 }}
               />
               <div>
@@ -824,7 +825,7 @@ function CommunitySavesView({ recipes }: { recipes: Recipe[] }) {
                   src={recipe.image}
                   alt=""
                   onError={(event) => {
-                    event.currentTarget.src = "/assets/dessert-hero.png";
+                    event.currentTarget.src = dessertHeroImage;
                   }}
                 />
                 <div>
@@ -1072,7 +1073,7 @@ export function StudioPage() {
                     src={recipe.image}
                     alt=""
                     onError={(event) => {
-                      event.currentTarget.src = "/assets/dessert-hero.png";
+                      event.currentTarget.src = dessertHeroImage;
                     }}
                   />
                   <div>

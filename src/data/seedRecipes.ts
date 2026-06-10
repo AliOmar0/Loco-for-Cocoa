@@ -1,4 +1,5 @@
 import type { Recipe } from "../types";
+import { dessertHeroImage } from "../lib/assets";
 
 export const seedRecipes: Recipe[] = [
   {
@@ -250,7 +251,7 @@ export const seedRecipes: Recipe[] = [
     servings: 18,
     featured: false,
     published: true,
-    image: "/assets/dessert-hero.png",
+    image: dessertHeroImage,
     ingredients: [
       "225 g dark chocolate",
       "2/3 cup heavy cream",

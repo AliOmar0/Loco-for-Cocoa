@@ -7,6 +7,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:pages": "tsc -b && vite build --base=/Loco-for-Cocoa/",
     "preview": "vite preview",
     "lint": "eslint .",
     "test:smoke": "node tests/react-smoke.mjs"
@@ -26,7 +27,7 @@
   "bugs": {
     "url": "https://github.com/AliOmar0/Loco-for-Cocoa/issues"
   },
-  "homepage": "https://github.com/AliOmar0/Loco-for-Cocoa#readme",
+  "homepage": "https://aliomar0.github.io/Loco-for-Cocoa/",
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
     "@react-three/drei": "^10.7.7",

@@ -152,7 +152,7 @@ export function HomePage() {
             <a href="#field-notes">Field notes</a>
           </nav>
           <div>
-            <a href="/" aria-label="Instagram">
+            <a href="#top" aria-label="Back to top">
               <Camera size={17} />
             </a>
             <span>© {new Date().getFullYear()} Loco for Cocoa</span>

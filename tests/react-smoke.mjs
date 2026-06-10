@@ -2,7 +2,11 @@ import fs from "node:fs/promises";
 import path from "node:path";
 
 const debugPort = process.env.EDGE_DEBUG_PORT || "9230";
-const baseUrl = process.env.APP_URL || "http://127.0.0.1:4173";
+const baseUrl = (process.env.APP_URL || "http://127.0.0.1:4173").replace(
+  /\/+$/,
+  "",
+);
+const homeUrl = `${baseUrl}/`;
 const screenshotDir = process.env.SMOKE_SCREENSHOT_DIR;
 
 const targets = await fetch(`http://127.0.0.1:${debugPort}/json/list`).then((response) =>
@@ -47,7 +51,11 @@ async function evaluate(expression) {
     returnByValue: true,
   });
   if (result.exceptionDetails) {
-    throw new Error(result.exceptionDetails.text || "Browser evaluation failed.");
+    throw new Error(
+      result.exceptionDetails.exception?.description ||
+        result.exceptionDetails.text ||
+        "Browser evaluation failed.",
+    );
   }
   return result.result?.value;
 }
@@ -62,7 +70,15 @@ async function waitFor(expression, timeout = 8000) {
     }
     await new Promise((resolve) => setTimeout(resolve, 120));
   }
-  throw new Error(`Timed out waiting for: ${expression}`);
+  const pageState = await evaluate(`({
+    url: location.href,
+    title: document.title,
+    body: document.body?.innerText?.slice(0, 500),
+    root: document.querySelector("#root")?.innerHTML?.slice(0, 500)
+  })`).catch(() => null);
+  throw new Error(
+    `Timed out waiting for: ${expression}\nPage state: ${JSON.stringify(pageState)}`,
+  );
 }
 
 async function capture(name) {
@@ -84,6 +100,7 @@ await send("Emulation.setDeviceMetricsOverride", {
   deviceScaleFactor: 1,
   mobile: false,
 });
+await send("Page.navigate", { url: homeUrl });
 await waitFor(`document.querySelectorAll(".recipe-card").length >= 6`);
 
 const desktopSummary = await evaluate(`({
@@ -110,6 +127,18 @@ await evaluate(`document.querySelector(".hero-slider-controls > button:last-chil
 await waitFor(
   `document.querySelector(".art-chip-top strong").textContent !== ${JSON.stringify(initialHeroTitle)}`,
 );
+const heroClipSummary = await evaluate(`(() => {
+  const clip = document.querySelector(".hero-art-clip");
+  const style = getComputedStyle(clip);
+  return {
+    radius: style.borderRadius,
+    overflow: style.overflow,
+    width: clip.getBoundingClientRect().width
+  };
+})()`);
+if (heroClipSummary.radius === "0px" || heroClipSummary.overflow !== "hidden") {
+  throw new Error("The hero image transition lost its rounded clipping layer.");
+}
 await capture("react-home-desktop.png");
 
 await evaluate(`document.querySelector(".card-hit-area").click()`);
@@ -135,6 +164,49 @@ await evaluate(`document.querySelector(".command-palette > label button").click(
 
 await evaluate(`document.querySelector("#recipes").scrollIntoView()`);
 await new Promise((resolve) => setTimeout(resolve, 500));
+const archiveLayout = await evaluate(`(() => {
+  const grid = document.querySelector(".recipe-grid").getBoundingClientRect();
+  const cards = [...document.querySelectorAll(".recipe-card")].map((card) => {
+    const rect = card.getBoundingClientRect();
+    const surface = card.querySelector(".recipe-card-surface");
+    return {
+      top: Math.round(rect.top),
+      left: rect.left,
+      right: rect.right,
+      radius: getComputedStyle(surface).borderRadius,
+      overflow: getComputedStyle(surface).overflow
+    };
+  });
+  const rows = Object.values(cards.reduce((result, card) => {
+    const key = String(card.top);
+    (result[key] ||= []).push(card);
+    return result;
+  }, {}));
+  return {
+    rows: rows.map((row) => ({
+      leftGap: Math.round(Math.min(...row.map((card) => card.left)) - grid.left),
+      rightGap: Math.round(grid.right - Math.max(...row.map((card) => card.right))),
+      count: row.length
+    })),
+    cornersStable: cards.every((card) => card.radius !== "0px" && card.overflow === "hidden")
+  };
+})()`);
+if (
+  !archiveLayout.cornersStable ||
+  archiveLayout.rows.some((row) => row.leftGap > 2 || row.rightGap > 2)
+) {
+  throw new Error(`Archive cards have unstable corners or incomplete rows: ${JSON.stringify(archiveLayout)}`);
+}
+await evaluate(`document.querySelector(".recipe-card").dispatchEvent(new PointerEvent("pointermove", {
+  bubbles: true,
+  clientX: 400,
+  clientY: 500
+}))`);
+await new Promise((resolve) => setTimeout(resolve, 180));
+const hoveredRadius = await evaluate(
+  `getComputedStyle(document.querySelector(".recipe-card-surface")).borderRadius`,
+);
+if (hoveredRadius === "0px") throw new Error("Recipe card corners disappeared on hover.");
 await capture("react-archive-desktop.png");
 await evaluate(`document.querySelector("#flavor-lab").scrollIntoView()`);
 await new Promise((resolve) => setTimeout(resolve, 500));
@@ -147,6 +219,20 @@ await waitFor(
   `document.querySelector(".note-reveal h3").textContent !== ${JSON.stringify(initialNote)}`,
 );
 await capture("react-field-notes-desktop.png");
+await evaluate(`document.querySelector(".site-footer").scrollIntoView()`);
+await new Promise((resolve) => setTimeout(resolve, 400));
+const displayTypeSummary = await evaluate(`({
+  heroOverflow: getComputedStyle(document.querySelector(".hero h1 > span")).overflow,
+  footerOverflow: getComputedStyle(document.querySelector(".footer-wordmark")).overflow,
+  footerLineHeight: getComputedStyle(document.querySelector(".footer-wordmark")).lineHeight
+})`);
+if (
+  displayTypeSummary.heroOverflow !== "visible" ||
+  displayTypeSummary.footerOverflow !== "visible"
+) {
+  throw new Error("Display typography is still clipped by an overflow container.");
+}
+await capture("react-footer-desktop.png");
 await evaluate(`document.documentElement.style.scrollBehavior = "auto"; window.scrollTo(0, 0)`);
 await new Promise((resolve) => setTimeout(resolve, 250));
 
@@ -156,7 +242,7 @@ await send("Emulation.setDeviceMetricsOverride", {
   deviceScaleFactor: 1,
   mobile: true,
 });
-await send("Page.navigate", { url: baseUrl });
+await send("Page.navigate", { url: homeUrl });
 await waitFor(`document.querySelectorAll(".recipe-card").length >= 6`);
 await waitFor(`getComputedStyle(document.querySelector(".mobile-section-dock")).display !== "none"`);
 await new Promise((resolve) => setTimeout(resolve, 500));
@@ -174,6 +260,39 @@ if (mobileSummary.canvas) {
   throw new Error("The expensive hero shader should not be mounted on mobile.");
 }
 await capture("react-home-mobile.png");
+
+await evaluate(`document.querySelector("#recipes").scrollIntoView()`);
+await new Promise((resolve) => setTimeout(resolve, 450));
+const editorialMobile = await evaluate(`(() => {
+  const surface = document.querySelector(".recipe-card-surface");
+  const image = document.querySelector(".recipe-image");
+  return {
+    display: getComputedStyle(surface).display,
+    cardWidth: surface.getBoundingClientRect().width,
+    imageWidth: image.getBoundingClientRect().width
+  };
+})()`);
+await evaluate(`document.querySelector('.layout-switch button[aria-label="Compact grid"]').click()`);
+await waitFor(`document.querySelector(".recipe-grid").classList.contains("is-compact")`);
+await new Promise((resolve) => setTimeout(resolve, 300));
+const compactMobile = await evaluate(`(() => {
+  const surface = document.querySelector(".recipe-card-surface");
+  const image = document.querySelector(".recipe-image");
+  return {
+    display: getComputedStyle(surface).display,
+    columns: getComputedStyle(surface).gridTemplateColumns,
+    cardWidth: surface.getBoundingClientRect().width,
+    imageWidth: image.getBoundingClientRect().width
+  };
+})()`);
+if (
+  editorialMobile.display === compactMobile.display ||
+  compactMobile.display !== "grid" ||
+  compactMobile.imageWidth >= compactMobile.cardWidth * 0.6
+) {
+  throw new Error("Mobile archive view controls do not produce distinct layouts.");
+}
+await capture("react-archive-mobile-compact.png");
 
 await send("Emulation.setDeviceMetricsOverride", {
   width: 1440,

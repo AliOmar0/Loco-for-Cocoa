@@ -16,6 +16,7 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
+import { dessertHeroImage } from "../lib/assets";
 import { formatTime, moodLabels, scaleIngredient } from "../lib/recipe";
 import type { Recipe, RecipeStep } from "../types";
 
@@ -126,7 +127,7 @@ export function RecipeDetail({
                 src={recipe.image}
                 alt={recipe.title}
                 onError={(event) => {
-                  event.currentTarget.src = "/assets/dessert-hero.png";
+                  event.currentTarget.src = dessertHeroImage;
                 }}
               />
               <div

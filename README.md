@@ -2,6 +2,8 @@
 
 A cinematic sweets recipe experience built with React, TypeScript, Three.js, custom GLSL shaders, Motion, Zustand, React Hook Form, and Zod.
 
+[View the live site](https://aliomar0.github.io/Loco-for-Cocoa/)
+
 ## Features
 
 ### Visitor experience
@@ -53,6 +55,18 @@ The studio is at [http://127.0.0.1:5173/studio](http://127.0.0.1:5173/studio). T
 npm run build
 npm run preview
 ```
+
+## GitHub Pages
+
+Pushes to `main` automatically build and deploy through
+`.github/workflows/deploy-pages.yml`.
+
+```powershell
+npm run build:pages
+```
+
+The deployed site uses the `/Loco-for-Cocoa/` base path and includes a Pages
+fallback so the Studio route works when opened directly.
 
 ## Checks
 

@@ -1,6 +1,7 @@
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
 import { useMemo, useState } from "react";
+import { dessertHeroImage } from "../lib/assets";
 import { recipeScore } from "../lib/recipe";
 import type { Recipe } from "../types";
 
@@ -75,7 +76,7 @@ export function FlavorLab({ recipes, onOpenRecipe }: FlavorLabProps) {
           src={recommendation.image}
           alt=""
           onError={(event) => {
-            event.currentTarget.src = "/assets/dessert-hero.png";
+            event.currentTarget.src = dessertHeroImage;
           }}
         />
         <div

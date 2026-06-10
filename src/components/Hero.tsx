@@ -15,6 +15,7 @@ import {
   useTransform,
 } from "motion/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { dessertHeroImage } from "../lib/assets";
 import { categoryLabels } from "../lib/recipe";
 import type { Recipe } from "../types";
 
@@ -156,51 +157,57 @@ export function Hero({ recipes, onRoulette, onOpenRecipe }: HeroProps) {
         }}
       >
         <div className="hero-art">
-          <AnimatePresence mode="popLayout">
-            {activeRecipe && (
-              <motion.img
-                key={activeRecipe.id}
-                src={activeRecipe.image}
-                alt={activeRecipe.title}
-                initial={{ opacity: 0, scale: 1.08 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.98 }}
-                transition={{ duration: 0.75, ease: [0.22, 1, 0.36, 1] }}
-                onError={(event) => {
-                  event.currentTarget.src = "/assets/dessert-hero.png";
-                }}
-              />
-            )}
-          </AnimatePresence>
-          <div className="hero-art-glass" />
-          <motion.div
-            className="art-chip art-chip-top"
-            animate={{ y: [0, -8, 0], rotate: [-4, -2, -4] }}
-            transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <span>{activeRecipe ? categoryLabels[activeRecipe.category] : "Sweet archive"}</span>
-            <strong>{activeRecipe?.title ?? "Loco for Cocoa"}</strong>
-          </motion.div>
-          <motion.div
-            className="art-chip art-chip-side"
-            animate={{ x: [0, 7, 0], rotate: [5, 3, 5] }}
-            transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
-          >
-            <Star size={15} fill="currentColor" />
-            {activeRecipe?.rating.toFixed(1) ?? "4.9"} community mood
-          </motion.div>
-          <div className="art-index">
-            <span>{String(activeIndex + 1).padStart(2, "0")}</span>
-            <i />
-            <span>{String(slides.length).padStart(2, "0")}</span>
+          <div className="hero-art-clip">
+            <AnimatePresence mode="sync" initial={false}>
+              {activeRecipe && (
+                <motion.img
+                  key={activeRecipe.id}
+                  src={activeRecipe.image}
+                  alt={activeRecipe.title}
+                  initial={{ opacity: 0, scale: 1.045 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0 }}
+                  transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+                  onError={(event) => {
+                    event.currentTarget.src = dessertHeroImage;
+                  }}
+                />
+              )}
+            </AnimatePresence>
+            <div className="hero-art-glass" />
+            <motion.div
+              className="art-chip art-chip-top"
+              animate={{ y: [0, -8, 0], rotate: [-4, -2, -4] }}
+              transition={{ duration: 5.5, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <span>
+                {activeRecipe
+                  ? categoryLabels[activeRecipe.category]
+                  : "Sweet archive"}
+              </span>
+              <strong>{activeRecipe?.title ?? "Loco for Cocoa"}</strong>
+            </motion.div>
+            <motion.div
+              className="art-chip art-chip-side"
+              animate={{ x: [0, 7, 0], rotate: [5, 3, 5] }}
+              transition={{ duration: 4.8, repeat: Infinity, ease: "easeInOut" }}
+            >
+              <Star size={15} fill="currentColor" />
+              {activeRecipe?.rating.toFixed(1) ?? "4.9"} community mood
+            </motion.div>
+            <div className="art-index">
+              <span>{String(activeIndex + 1).padStart(2, "0")}</span>
+              <i />
+              <span>{String(slides.length).padStart(2, "0")}</span>
+            </div>
+            <button
+              className="hero-art-open"
+              onClick={() => activeRecipe && onOpenRecipe(activeRecipe)}
+            >
+              Open recipe
+              <ArrowUpRight size={15} />
+            </button>
           </div>
-          <button
-            className="hero-art-open"
-            onClick={() => activeRecipe && onOpenRecipe(activeRecipe)}
-          >
-            Open recipe
-            <ArrowUpRight size={15} />
-          </button>
         </div>
         <div className="hero-slider-controls" aria-label="Featured recipes">
           <button onClick={() => moveSlide(-1)} aria-label="Previous recipe">
