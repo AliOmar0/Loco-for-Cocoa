@@ -108,16 +108,23 @@ const desktopSummary = await evaluate(`({
   title: document.title,
   recipes: document.querySelectorAll(".recipe-card").length,
   canvas: Boolean(document.querySelector(".shader-shell canvas")),
+  shaderRenderer: document.querySelector(".shader-shell canvas")?.dataset.renderer,
   heroSlides: document.querySelectorAll(".hero-slider-controls > div button").length,
+  heroImageLayers: document.querySelectorAll(".hero-art-media > img").length,
   overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
 })`);
 
 if (!desktopSummary.title.includes("Loco for Cocoa")) {
   throw new Error(`Unexpected title: ${desktopSummary.title}`);
 }
-if (!desktopSummary.canvas) throw new Error("The Three.js shader canvas did not mount.");
+if (!desktopSummary.canvas || desktopSummary.shaderRenderer !== "native-webgl") {
+  throw new Error("The native WebGL shader canvas did not mount.");
+}
 if (desktopSummary.heroSlides < 4) {
   throw new Error("The hero recipe carousel did not initialize.");
+}
+if (desktopSummary.heroImageLayers !== desktopSummary.heroSlides) {
+  throw new Error("The hero image layers were not pre-mounted.");
 }
 if (desktopSummary.overflow) throw new Error("Desktop page has horizontal overflow.");
 
@@ -125,6 +132,29 @@ const initialHeroTitle = await evaluate(
   `document.querySelector(".art-chip-top strong").textContent`,
 );
 await evaluate(`document.querySelector(".hero-slider-controls > button:last-child").click()`);
+const transitionFrame = await evaluate(`(() => {
+  const images = [...document.querySelectorAll(".hero-art-media > img")];
+  return {
+    count: images.length,
+    active: images.filter((image) => image.classList.contains("is-active")).length,
+    allClipped: images.every((image) => {
+      const style = getComputedStyle(image);
+      return style.clipPath !== "none" && style.borderRadius !== "0px";
+    }),
+    clipContainer: getComputedStyle(document.querySelector(".hero-art-clip")).clipPath
+  };
+})()`);
+if (
+  transitionFrame.count !== desktopSummary.heroSlides ||
+  transitionFrame.active !== 1 ||
+  !transitionFrame.allClipped ||
+  transitionFrame.clipContainer === "none"
+) {
+  throw new Error(
+    `Hero transition layers are not continuously clipped: ${JSON.stringify(transitionFrame)}`,
+  );
+}
+await capture("react-hero-transition-frame.png");
 await waitFor(
   `document.querySelector(".art-chip-top strong").textContent !== ${JSON.stringify(initialHeroTitle)}`,
 );
@@ -166,14 +196,13 @@ await evaluate(`document.querySelector(".command-palette > label button").click(
 await evaluate(`document.querySelector("#recipes").scrollIntoView()`);
 await new Promise((resolve) => setTimeout(resolve, 500));
 const archiveLayout = await evaluate(`(() => {
-  const grid = document.querySelector(".recipe-grid").getBoundingClientRect();
+  const grid = document.querySelector(".recipe-grid");
   const cards = [...document.querySelectorAll(".recipe-card")].map((card) => {
-    const rect = card.getBoundingClientRect();
     const surface = card.querySelector(".recipe-card-surface");
     return {
-      top: Math.round(rect.top),
-      left: rect.left,
-      right: rect.right,
+      top: card.offsetTop,
+      left: card.offsetLeft,
+      right: card.offsetLeft + card.offsetWidth,
       radius: getComputedStyle(surface).borderRadius,
       overflow: getComputedStyle(surface).overflow
     };
@@ -185,8 +214,8 @@ const archiveLayout = await evaluate(`(() => {
   }, {}));
   return {
     rows: rows.map((row) => ({
-      leftGap: Math.round(Math.min(...row.map((card) => card.left)) - grid.left),
-      rightGap: Math.round(grid.right - Math.max(...row.map((card) => card.right))),
+      leftGap: Math.round(Math.min(...row.map((card) => card.left))),
+      rightGap: Math.round(grid.clientWidth - Math.max(...row.map((card) => card.right))),
       count: row.length
     })),
     cornersStable: cards.every((card) => card.radius !== "0px" && card.overflow === "hidden")

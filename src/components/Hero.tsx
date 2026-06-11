@@ -7,7 +7,6 @@ import {
   Star,
 } from "lucide-react";
 import {
-  AnimatePresence,
   motion,
   useMotionValue,
   useScroll,
@@ -158,22 +157,21 @@ export function Hero({ recipes, onRoulette, onOpenRecipe }: HeroProps) {
       >
         <div className="hero-art">
           <div className="hero-art-clip">
-            <AnimatePresence mode="sync" initial={false}>
-              {activeRecipe && (
-                <motion.img
-                  key={activeRecipe.id}
-                  src={activeRecipe.image}
-                  alt={activeRecipe.title}
-                  initial={{ opacity: 0, scale: 1.045 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+            <div className="hero-art-media">
+              {slides.map((recipe, index) => (
+                <img
+                  key={recipe.id}
+                  className={index === activeIndex ? "is-active" : ""}
+                  src={recipe.image}
+                  alt={index === activeIndex ? recipe.title : ""}
+                  aria-hidden={index !== activeIndex}
+                  loading={index < 2 ? "eager" : "lazy"}
                   onError={(event) => {
                     event.currentTarget.src = dessertHeroImage;
                   }}
                 />
-              )}
-            </AnimatePresence>
+              ))}
+            </div>
             <div className="hero-art-glass" />
             <motion.div
               className="art-chip art-chip-top"

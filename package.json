@@ -1,7 +1,7 @@
 {
   "name": "loco-for-cocoa",
   "version": "2.0.0",
-  "description": "A cinematic React and Three.js recipe experience for sweet things.",
+  "description": "A cinematic React and native WebGL recipe experience for sweet things.",
   "private": true,
   "type": "module",
   "scripts": {
@@ -19,8 +19,8 @@
   "keywords": [
     "recipes",
     "react",
-    "threejs",
-    "webgl"
+    "webgl",
+    "glsl"
   ],
   "author": "Loco for Cocoa",
   "license": "MIT",
@@ -30,15 +30,12 @@
   "homepage": "https://aliomar0.github.io/Loco-for-Cocoa/",
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
-    "@react-three/drei": "^10.7.7",
-    "@react-three/fiber": "^9.6.1",
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-hook-form": "^7.78.0",
     "react-router-dom": "^7.17.0",
-    "three": "^0.184.0",
     "zod": "^4.4.3",
     "zustand": "^5.0.14"
   },
@@ -46,7 +43,6 @@
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
-    "@types/three": "^0.184.1",
     "@vitejs/plugin-react": "^6.0.2",
     "eslint": "^10.4.1",
     "globals": "^17.6.0",

@@ -1,6 +1,6 @@
 # Loco for Cocoa
 
-A cinematic sweets recipe experience built with React, TypeScript, Three.js, custom GLSL shaders, Motion, Zustand, React Hook Form, and Zod.
+A cinematic sweets recipe experience built with React, TypeScript, native WebGL, custom GLSL shaders, Motion, Zustand, React Hook Form, and Zod.
 
 [View the live site](https://aliomar0.github.io/Loco-for-Cocoa/)
 
@@ -8,7 +8,7 @@ A cinematic sweets recipe experience built with React, TypeScript, Three.js, cus
 
 ### Visitor experience
 
-- Pointer-reactive Three.js cocoa shader with a lightweight mobile art direction
+- Pointer-reactive native WebGL cocoa shader with a lightweight mobile art direction
 - Auto-rotating hero carousel powered by the published recipe archive
 - Motion-driven editorial recipe cards, layout transitions, and route loading
 - Recipe filtering, favorites, command search (`Ctrl/Cmd + K`), and sweet roulette

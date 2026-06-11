@@ -1,14 +1,12 @@
-import { Canvas, useFrame } from "@react-three/fiber";
-import { AdaptiveDpr } from "@react-three/drei";
-import { useEffect, useMemo, useRef } from "react";
-import * as THREE from "three";
+import { useEffect, useRef } from "react";
 
 const vertexShader = `
+  attribute vec2 aPosition;
   varying vec2 vUv;
 
   void main() {
-    vUv = uv;
-    gl_Position = vec4(position.xy, 0.0, 1.0);
+    vUv = (aPosition + 1.0) * 0.5;
+    gl_Position = vec4(aPosition, 0.0, 1.0);
   }
 `;
 
@@ -83,60 +81,162 @@ const fragmentShader = `
   }
 `;
 
-function ShaderPlane() {
-  const material = useRef<THREE.ShaderMaterial>(null);
-  const targetMouse = useRef(new THREE.Vector2(0.67, 0.38));
-  const prefersReducedMotion = useMemo(
-    () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    [],
-  );
+function compileShader(
+  gl: WebGLRenderingContext,
+  type: number,
+  source: string,
+) {
+  const shader = gl.createShader(type);
+  if (!shader) throw new Error("Unable to create WebGL shader.");
 
-  useEffect(() => {
-    const onPointerMove = (event: PointerEvent) => {
-      targetMouse.current.set(
-        event.clientX / window.innerWidth,
-        1 - event.clientY / window.innerHeight,
-      );
-    };
-    window.addEventListener("pointermove", onPointerMove, { passive: true });
-    return () => window.removeEventListener("pointermove", onPointerMove);
-  }, []);
+  gl.shaderSource(shader, source);
+  gl.compileShader(shader);
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    const message = gl.getShaderInfoLog(shader) || "Shader compilation failed.";
+    gl.deleteShader(shader);
+    throw new Error(message);
+  }
+  return shader;
+}
 
-  useFrame(({ clock }) => {
-    if (!material.current) return;
-    material.current.uniforms.uTime.value = clock.elapsedTime;
-    material.current.uniforms.uMouse.value.lerp(targetMouse.current, 0.045);
-  });
+function createProgram(gl: WebGLRenderingContext) {
+  const vertex = compileShader(gl, gl.VERTEX_SHADER, vertexShader);
+  const fragment = compileShader(gl, gl.FRAGMENT_SHADER, fragmentShader);
+  const program = gl.createProgram();
+  if (!program) throw new Error("Unable to create WebGL program.");
 
-  return (
-    <mesh>
-      <planeGeometry args={[2, 2]} />
-      <shaderMaterial
-        ref={material}
-        vertexShader={vertexShader}
-        fragmentShader={fragmentShader}
-        uniforms={{
-          uTime: { value: 0 },
-          uMouse: { value: new THREE.Vector2(0.67, 0.38) },
-          uMotion: { value: prefersReducedMotion ? 0.05 : 1 },
-        }}
-      />
-    </mesh>
-  );
+  gl.attachShader(program, vertex);
+  gl.attachShader(program, fragment);
+  gl.linkProgram(program);
+  gl.deleteShader(vertex);
+  gl.deleteShader(fragment);
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    const message = gl.getProgramInfoLog(program) || "Shader linking failed.";
+    gl.deleteProgram(program);
+    throw new Error(message);
+  }
+  return program;
 }
 
 export function CocoaShader() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const gl = canvas.getContext("webgl", {
+      alpha: false,
+      antialias: false,
+      depth: false,
+      powerPreference: "high-performance",
+      preserveDrawingBuffer: false,
+    });
+    if (!gl) return;
+
+    let program: WebGLProgram;
+    try {
+      program = createProgram(gl);
+    } catch {
+      return;
+    }
+
+    const buffer = gl.createBuffer();
+    if (!buffer) {
+      gl.deleteProgram(program);
+      return;
+    }
+
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(
+      gl.ARRAY_BUFFER,
+      new Float32Array([
+        -1, -1, 1, -1, -1, 1,
+        -1, 1, 1, -1, 1, 1,
+      ]),
+      gl.STATIC_DRAW,
+    );
+
+    gl.useProgram(program);
+    const position = gl.getAttribLocation(program, "aPosition");
+    gl.enableVertexAttribArray(position);
+    gl.vertexAttribPointer(position, 2, gl.FLOAT, false, 0, 0);
+    gl.disable(gl.DEPTH_TEST);
+
+    const timeUniform = gl.getUniformLocation(program, "uTime");
+    const mouseUniform = gl.getUniformLocation(program, "uMouse");
+    const motionUniform = gl.getUniformLocation(program, "uMotion");
+    const reducedMotion = window.matchMedia(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    const targetMouse = { x: 0.67, y: 0.38 };
+    const currentMouse = { ...targetMouse };
+    const startedAt = performance.now();
+    let frame = 0;
+    let lastFrameAt = 0;
+    let visible = true;
+
+    const resize = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 1.35);
+      const width = Math.max(1, Math.round(rect.width * dpr));
+      const height = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== width || canvas.height !== height) {
+        canvas.width = width;
+        canvas.height = height;
+        gl.viewport(0, 0, width, height);
+      }
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      targetMouse.x = event.clientX / window.innerWidth;
+      targetMouse.y = 1 - event.clientY / window.innerHeight;
+    };
+
+    const render = (now: number) => {
+      frame = window.requestAnimationFrame(render);
+      if (!visible || document.hidden) return;
+      if (reducedMotion && now - lastFrameAt < 1000 / 12) return;
+
+      lastFrameAt = now;
+      resize();
+      currentMouse.x += (targetMouse.x - currentMouse.x) * 0.045;
+      currentMouse.y += (targetMouse.y - currentMouse.y) * 0.045;
+
+      gl.useProgram(program);
+      gl.uniform1f(timeUniform, (now - startedAt) / 1000);
+      gl.uniform2f(mouseUniform, currentMouse.x, currentMouse.y);
+      gl.uniform1f(motionUniform, reducedMotion ? 0.05 : 1);
+      gl.drawArrays(gl.TRIANGLES, 0, 6);
+    };
+
+    const resizeObserver = new ResizeObserver(resize);
+    resizeObserver.observe(canvas);
+    const visibilityObserver = new IntersectionObserver(
+      ([entry]) => {
+        visible = entry.isIntersecting;
+      },
+      { rootMargin: "120px" },
+    );
+    visibilityObserver.observe(canvas);
+    window.addEventListener("pointermove", onPointerMove, { passive: true });
+    resize();
+    frame = window.requestAnimationFrame(render);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("pointermove", onPointerMove);
+      resizeObserver.disconnect();
+      visibilityObserver.disconnect();
+      gl.deleteBuffer(buffer);
+      gl.deleteProgram(program);
+    };
+  }, []);
+
   return (
     <div className="shader-shell" aria-hidden="true">
-      <Canvas
-        orthographic
-        camera={{ position: [0, 0, 1], zoom: 1 }}
-        dpr={[1, 1.5]}
-        gl={{ antialias: false, alpha: false, powerPreference: "high-performance" }}
-      >
-        <ShaderPlane />
-        <AdaptiveDpr pixelated />
-      </Canvas>
+      <canvas ref={canvasRef} data-renderer="native-webgl" />
       <div className="shader-grain" />
     </div>
   );
