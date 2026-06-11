@@ -12,6 +12,8 @@ type RecipeExplorerProps = {
   onFavoritesOnlyChange: (value: boolean) => void;
   onOpenRecipe: (recipe: Recipe) => void;
   onToggleFavorite: (id: string) => void;
+  transitioningRecipeId?: string | null;
+  selectedRecipeId?: string | null;
 };
 
 export function RecipeExplorer({
@@ -21,6 +23,8 @@ export function RecipeExplorer({
   onFavoritesOnlyChange,
   onOpenRecipe,
   onToggleFavorite,
+  transitioningRecipeId,
+  selectedRecipeId,
 }: RecipeExplorerProps) {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState<RecipeCategory | "all">("all");
@@ -192,6 +196,12 @@ export function RecipeExplorer({
               favorite={favorites.includes(recipe.id)}
               onOpen={() => onOpenRecipe(recipe)}
               onFavorite={() => onToggleFavorite(recipe.id)}
+              sharedName={
+                transitioningRecipeId === recipe.id &&
+                selectedRecipeId !== recipe.id
+                  ? `recipe-image-${recipe.id}`
+                  : undefined
+              }
             />
           ))}
         </AnimatePresence>

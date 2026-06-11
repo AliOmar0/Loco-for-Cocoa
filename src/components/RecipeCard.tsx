@@ -5,9 +5,9 @@ import {
   useSpring,
   useTransform,
 } from "motion/react";
-import { dessertHeroImage } from "../lib/assets";
 import type { Recipe } from "../types";
 import { categoryLabels, moodLabels } from "../lib/recipe";
+import { RecipeImage } from "./RecipeImage";
 
 type RecipeCardProps = {
   recipe: Recipe;
@@ -15,6 +15,7 @@ type RecipeCardProps = {
   favorite: boolean;
   onOpen: () => void;
   onFavorite: () => void;
+  sharedName?: string;
 };
 
 export function RecipeCard({
@@ -23,6 +24,7 @@ export function RecipeCard({
   favorite,
   onOpen,
   onFavorite,
+  sharedName,
 }: RecipeCardProps) {
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -61,13 +63,11 @@ export function RecipeCard({
           aria-label={`Open ${recipe.title}`}
         />
         <div className="recipe-image">
-          <img
-            src={recipe.image}
+          <RecipeImage
+            recipe={recipe}
             alt=""
             loading="lazy"
-            onError={(event) => {
-              event.currentTarget.src = dessertHeroImage;
-            }}
+            sharedName={sharedName}
           />
           <div
             className="recipe-color-wash"

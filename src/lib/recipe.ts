@@ -67,3 +67,45 @@ export function formatTime(seconds: number) {
   const remainder = seconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
 }
+
+export function getImageFocus(recipe: Pick<Recipe, "imageFocus">) {
+  return {
+    x: recipe.imageFocus?.x ?? 50,
+    y: recipe.imageFocus?.y ?? 50,
+    zoom: recipe.imageFocus?.zoom ?? 1,
+  };
+}
+
+export function ingredientKeywords(recipe: Recipe) {
+  const stopWords = new Set([
+    "cup",
+    "cups",
+    "tbsp",
+    "tsp",
+    "large",
+    "small",
+    "soft",
+    "cold",
+    "hot",
+    "chopped",
+    "powdered",
+    "process",
+    "plus",
+    "and",
+    "the",
+    "with",
+  ]);
+
+  return Array.from(
+    new Set(
+      recipe.ingredients.flatMap((ingredient) =>
+        ingredient
+          .toLowerCase()
+          .replace(/[0-9/]+/g, " ")
+          .replace(/[^a-z-]+/g, " ")
+          .split(/\s+/)
+          .filter((word) => word.length > 2 && !stopWords.has(word)),
+      ),
+    ),
+  );
+}

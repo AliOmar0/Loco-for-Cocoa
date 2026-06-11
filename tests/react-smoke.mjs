@@ -22,10 +22,28 @@ if (!target?.webSocketDebuggerUrl) {
 
 const socket = new WebSocket(target.webSocketDebuggerUrl);
 const pending = new Map();
+const browserErrors = [];
 let nextId = 1;
 
 socket.addEventListener("message", (event) => {
   const message = JSON.parse(event.data);
+  if (message.method === "Runtime.exceptionThrown") {
+    browserErrors.push(
+      message.params?.exceptionDetails?.exception?.description ||
+        message.params?.exceptionDetails?.text ||
+        "Unknown runtime exception",
+    );
+  }
+  if (
+    message.method === "Runtime.consoleAPICalled" &&
+    message.params?.type === "error"
+  ) {
+    browserErrors.push(
+      message.params.args
+        .map((argument) => argument.value || argument.description)
+        .join(" "),
+    );
+  }
   if (!message.id || !pending.has(message.id)) return;
   const { resolve, reject } = pending.get(message.id);
   pending.delete(message.id);
@@ -77,7 +95,7 @@ async function waitFor(expression, timeout = 8000) {
     root: document.querySelector("#root")?.innerHTML?.slice(0, 500)
   })`).catch(() => null);
   throw new Error(
-    `Timed out waiting for: ${expression}\nPage state: ${JSON.stringify(pageState)}`,
+    `Timed out waiting for: ${expression}\nPage state: ${JSON.stringify(pageState)}\nBrowser errors: ${browserErrors.join("\n")}`,
   );
 }
 
@@ -110,7 +128,9 @@ const desktopSummary = await evaluate(`({
   canvas: Boolean(document.querySelector(".shader-shell canvas")),
   shaderRenderer: document.querySelector(".shader-shell canvas")?.dataset.renderer,
   heroSlides: document.querySelectorAll(".hero-slider-controls > div button").length,
-  heroImageLayers: document.querySelectorAll(".hero-art-media > img").length,
+  heroImageLayers: document.querySelectorAll(".hero-art-media img").length,
+  collections: document.querySelectorAll(".collection-card").length,
+  pantryResults: document.querySelectorAll(".pantry-results > button").length,
   overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
 })`);
 
@@ -126,6 +146,9 @@ if (desktopSummary.heroSlides < 4) {
 if (desktopSummary.heroImageLayers !== desktopSummary.heroSlides) {
   throw new Error("The hero image layers were not pre-mounted.");
 }
+if (desktopSummary.collections !== 4 || desktopSummary.pantryResults !== 3) {
+  throw new Error("The curated collections or pantry matcher did not initialize.");
+}
 if (desktopSummary.overflow) throw new Error("Desktop page has horizontal overflow.");
 
 const initialHeroTitle = await evaluate(
@@ -133,7 +156,7 @@ const initialHeroTitle = await evaluate(
 );
 await evaluate(`document.querySelector(".hero-slider-controls > button:last-child").click()`);
 const transitionFrame = await evaluate(`(() => {
-  const images = [...document.querySelectorAll(".hero-art-media > img")];
+  const images = [...document.querySelectorAll(".hero-art-media img")];
   return {
     count: images.length,
     active: images.filter((image) => image.classList.contains("is-active")).length,
@@ -174,6 +197,12 @@ await capture("react-home-desktop.png");
 
 await evaluate(`document.querySelector(".card-hit-area").click()`);
 await waitFor(`Boolean(document.querySelector(".recipe-detail"))`);
+const sharedTransition = await evaluate(
+  `getComputedStyle(document.querySelector(".detail-hero img")).viewTransitionName`,
+);
+if (!sharedTransition.includes("recipe-image-")) {
+  throw new Error("The recipe image did not receive a shared view-transition name.");
+}
 const initialServing = await evaluate(
   `Number(document.querySelector(".serving-control > div:last-child > span").textContent)`,
 );
@@ -186,6 +215,8 @@ if (updatedServing !== initialServing + 1) {
 }
 await evaluate(`document.querySelector(".step-check").click()`);
 await waitFor(`document.querySelector(".method-list li").classList.contains("is-complete")`);
+await evaluate(`document.querySelector(".ingredient-list button").click()`);
+await waitFor(`document.querySelector(".ingredient-list li").classList.contains("is-checked")`);
 await evaluate(`document.querySelector(".detail-rail button:last-child").click()`);
 await waitFor(`!document.querySelector(".recipe-detail")`);
 
@@ -238,6 +269,12 @@ const hoveredRadius = await evaluate(
 );
 if (hoveredRadius === "0px") throw new Error("Recipe card corners disappeared on hover.");
 await capture("react-archive-desktop.png");
+await evaluate(`document.querySelector(".curated-shelves").scrollIntoView()`);
+await new Promise((resolve) => setTimeout(resolve, 350));
+await capture("react-collections-desktop.png");
+await evaluate(`document.querySelector(".pantry-matcher").scrollIntoView()`);
+await new Promise((resolve) => setTimeout(resolve, 350));
+await capture("react-pantry-desktop.png");
 await evaluate(`document.querySelector("#flavor-lab").scrollIntoView()`);
 await new Promise((resolve) => setTimeout(resolve, 500));
 await capture("react-flavor-lab-desktop.png");
@@ -280,7 +317,8 @@ const mobileSummary = await evaluate(`({
   overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth,
   dockLinks: document.querySelectorAll(".mobile-section-dock a").length,
   dockVisible: getComputedStyle(document.querySelector(".mobile-section-dock")).display !== "none",
-  canvas: Boolean(document.querySelector(".shader-shell canvas"))
+  canvas: Boolean(document.querySelector(".shader-shell canvas")),
+  footerColumns: getComputedStyle(document.querySelector(".footer-wordmark")).gridTemplateColumns
 })`);
 if (mobileSummary.overflow) throw new Error("Mobile page has horizontal overflow.");
 if (mobileSummary.dockLinks !== 3 || !mobileSummary.dockVisible) {
@@ -291,6 +329,9 @@ if (mobileSummary.canvas) {
 }
 await capture("react-home-mobile.png");
 
+await evaluate(`document.documentElement.style.scrollBehavior = "auto"; document.querySelector(".site-footer").scrollIntoView()`);
+await new Promise((resolve) => setTimeout(resolve, 120));
+await capture("react-footer-mobile.png");
 await evaluate(`document.querySelector("#recipes").scrollIntoView()`);
 await new Promise((resolve) => setTimeout(resolve, 450));
 const editorialMobile = await evaluate(`(() => {
@@ -302,6 +343,7 @@ const editorialMobile = await evaluate(`(() => {
     imageWidth: image.getBoundingClientRect().width
   };
 })()`);
+await capture("react-archive-mobile-editorial.png");
 await evaluate(`document.querySelector('.layout-switch button[aria-label="Compact grid"]').click()`);
 await waitFor(`document.querySelector(".recipe-grid").classList.contains("is-compact")`);
 await new Promise((resolve) => setTimeout(resolve, 300));
@@ -324,22 +366,64 @@ if (
 }
 await capture("react-archive-mobile-compact.png");
 
+await evaluate(`document.querySelector(".card-hit-area").click()`);
+await waitFor(`Boolean(document.querySelector(".recipe-detail"))`);
+const bakeBar = await evaluate(
+  `getComputedStyle(document.querySelector(".bake-mode-bar")).display`,
+);
+if (bakeBar === "none") throw new Error("The mobile bake-mode bar is not visible.");
+await evaluate(`document.querySelector(".bake-mode-start").click()`);
+await waitFor(`document.querySelector(".recipe-detail").classList.contains("is-bake-mode")`);
+await new Promise((resolve) => setTimeout(resolve, 850));
+await capture("react-bake-mode-mobile.png");
+await evaluate(`document.querySelector(".bake-mode-bar button[aria-label='Next step']").click()`);
+await waitFor(
+  `document.querySelector(".method-list li[data-method-step='1']").classList.contains("is-active-step")`,
+);
+await evaluate(`document.querySelector(".detail-rail button:last-child").click()`);
+await waitFor(`!document.querySelector(".recipe-detail")`);
+
+await send("Emulation.setDeviceMetricsOverride", {
+  width: 1160,
+  height: 900,
+  deviceScaleFactor: 1,
+  mobile: false,
+});
+await send("Page.navigate", { url: homeUrl });
+await waitFor(`document.querySelectorAll(".recipe-card").length >= 6`);
+const tabletNav = await evaluate(`({
+  nav: getComputedStyle(document.querySelector(".header-nav")).display,
+  menu: getComputedStyle(document.querySelector(".menu-control")).display,
+  overflow: document.documentElement.scrollWidth > document.documentElement.clientWidth
+})`);
+if (tabletNav.nav !== "none" || tabletNav.menu === "none" || tabletNav.overflow) {
+  throw new Error(`The 1160px navigation breakpoint is unstable: ${JSON.stringify(tabletNav)}`);
+}
+await new Promise((resolve) => setTimeout(resolve, 900));
+await capture("react-home-tablet-1160.png");
+
 await send("Emulation.setDeviceMetricsOverride", {
   width: 1440,
   height: 1000,
   deviceScaleFactor: 1,
   mobile: false,
 });
+browserErrors.length = 0;
 await evaluate(`location.href = "${baseUrl}/studio"`);
-await waitFor(`Boolean(document.querySelector(".studio-login"))`);
-await evaluate(`(() => {
-  const input = document.querySelector('.studio-login input');
-  const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-  setter.call(input, '0420');
-  input.dispatchEvent(new Event('input', { bubbles: true }));
-  document.querySelector('.studio-login form').requestSubmit();
-  return true;
-})()`);
+await waitFor(
+  `Boolean(document.querySelector(".studio-login") || document.querySelector(".studio-page"))`,
+);
+const studioLocked = await evaluate(`Boolean(document.querySelector(".studio-login"))`);
+if (studioLocked) {
+  await evaluate(`(() => {
+    const input = document.querySelector('.studio-login input');
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+    setter.call(input, '0420');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelector('.studio-login form').requestSubmit();
+    return true;
+  })()`);
+}
 await waitFor(`Boolean(document.querySelector(".studio-page"))`);
 
 const studioSummary = await evaluate(`({
@@ -347,9 +431,17 @@ const studioSummary = await evaluate(`({
   recipes: document.querySelectorAll(".manager-list > button").length,
   editor: Boolean(document.querySelector(".studio-editor")),
   sidebarPosition: getComputedStyle(document.querySelector(".studio-sidebar")).position,
-  sidebarHeight: document.querySelector(".studio-sidebar").getBoundingClientRect().height
+  sidebarHeight: document.querySelector(".studio-sidebar").getBoundingClientRect().height,
+  qualityScore: Boolean(document.querySelector(".editor-quality-strip")),
+  cropEditor: Boolean(document.querySelector(".image-crop-editor"))
 })`);
-if (studioSummary.stats !== 4 || studioSummary.recipes < 6 || !studioSummary.editor) {
+if (
+  studioSummary.stats !== 4 ||
+  studioSummary.recipes < 6 ||
+  !studioSummary.editor ||
+  !studioSummary.qualityScore ||
+  !studioSummary.cropEditor
+) {
   throw new Error("Studio dashboard did not initialize correctly.");
 }
 if (studioSummary.sidebarPosition !== "fixed" || studioSummary.sidebarHeight < 990) {

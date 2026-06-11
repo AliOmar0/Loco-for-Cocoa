@@ -1,17 +1,19 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { seedRecipes } from "../data/seedRecipes";
-import type { Recipe } from "../types";
+import type { Recipe, RecipeRevision } from "../types";
 
 type RecipeStore = {
   recipes: Recipe[];
   favorites: string[];
+  revisions: Record<string, RecipeRevision[]>;
   upsertRecipe: (recipe: Recipe) => void;
   deleteRecipe: (id: string) => void;
   duplicateRecipe: (id: string) => string | undefined;
   toggleFavorite: (id: string) => void;
   togglePublished: (id: string) => void;
   replaceRecipes: (recipes: Recipe[]) => void;
+  restoreRevision: (recipeId: string, revisionId: string) => void;
   resetRecipes: () => void;
 };
 
@@ -20,19 +22,39 @@ export const useRecipeStore = create<RecipeStore>()(
     (set, get) => ({
       recipes: seedRecipes,
       favorites: [],
+      revisions: {},
       upsertRecipe: (recipe) =>
         set((state) => {
-          const exists = state.recipes.some((item) => item.id === recipe.id);
+          const previous = state.recipes.find((item) => item.id === recipe.id);
+          const revision = previous
+            ? {
+                id: `${recipe.id}-${Date.now()}`,
+                savedAt: new Date().toISOString(),
+                recipe: previous,
+              }
+            : null;
           return {
-            recipes: exists
+            recipes: previous
               ? state.recipes.map((item) => (item.id === recipe.id ? recipe : item))
               : [recipe, ...state.recipes],
+            revisions: revision
+              ? {
+                  ...state.revisions,
+                  [recipe.id]: [
+                    revision,
+                    ...(state.revisions[recipe.id] || []),
+                  ].slice(0, 12),
+                }
+              : state.revisions,
           };
         }),
       deleteRecipe: (id) =>
         set((state) => ({
           recipes: state.recipes.filter((recipe) => recipe.id !== id),
           favorites: state.favorites.filter((favorite) => favorite !== id),
+          revisions: Object.fromEntries(
+            Object.entries(state.revisions).filter(([recipeId]) => recipeId !== id),
+          ),
         })),
       duplicateRecipe: (id) => {
         const source = get().recipes.find((recipe) => recipe.id === id);
@@ -74,11 +96,50 @@ export const useRecipeStore = create<RecipeStore>()(
           ),
         })),
       replaceRecipes: (recipes) => set({ recipes }),
-      resetRecipes: () => set({ recipes: seedRecipes, favorites: [] }),
+      restoreRevision: (recipeId, revisionId) =>
+        set((state) => {
+          const revision = state.revisions[recipeId]?.find(
+            (item) => item.id === revisionId,
+          );
+          const current = state.recipes.find((item) => item.id === recipeId);
+          if (!revision || !current) return state;
+          const restored = {
+            ...revision.recipe,
+            updatedAt: new Date().toISOString(),
+          };
+          return {
+            recipes: state.recipes.map((item) =>
+              item.id === recipeId ? restored : item,
+            ),
+            revisions: {
+              ...state.revisions,
+              [recipeId]: [
+                {
+                  id: `${recipeId}-${Date.now()}`,
+                  savedAt: new Date().toISOString(),
+                  recipe: current,
+                },
+                ...(state.revisions[recipeId] || []).filter(
+                  (item) => item.id !== revisionId,
+                ),
+              ].slice(0, 12),
+            },
+          };
+        }),
+      resetRecipes: () => set({ recipes: seedRecipes, favorites: [], revisions: {} }),
     }),
     {
       name: "loco-for-cocoa-react-v2",
-      version: 2,
+      version: 3,
+      migrate: (persisted) => {
+        const state = persisted as Partial<RecipeStore>;
+        return {
+          ...state,
+          recipes: state.recipes || seedRecipes,
+          favorites: state.favorites || [],
+          revisions: state.revisions || {},
+        };
+      },
     },
   ),
 );

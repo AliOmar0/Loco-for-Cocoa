@@ -14,9 +14,9 @@ import {
   useTransform,
 } from "motion/react";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { dessertHeroImage } from "../lib/assets";
 import { categoryLabels } from "../lib/recipe";
 import type { Recipe } from "../types";
+import { RecipeImage } from "./RecipeImage";
 
 const CocoaShader = lazy(() =>
   import("./CocoaShader").then((module) => ({ default: module.CocoaShader })),
@@ -26,9 +26,17 @@ type HeroProps = {
   recipes: Recipe[];
   onRoulette: () => void;
   onOpenRecipe: (recipe: Recipe) => void;
+  transitioningRecipeId?: string | null;
+  selectedRecipeId?: string | null;
 };
 
-export function Hero({ recipes, onRoulette, onOpenRecipe }: HeroProps) {
+export function Hero({
+  recipes,
+  onRoulette,
+  onOpenRecipe,
+  transitioningRecipeId,
+  selectedRecipeId,
+}: HeroProps) {
   const hero = useRef<HTMLElement>(null);
   const [activeIndex, setActiveIndex] = useState(0);
   const [paused, setPaused] = useState(false);
@@ -122,7 +130,12 @@ export function Hero({ recipes, onRoulette, onOpenRecipe }: HeroProps) {
           </motion.span>
         </h1>
 
-        <div className="hero-bottom">
+        <motion.div
+          className="hero-bottom"
+          initial={{ opacity: 0, y: 18 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.55, delay: 0.64 }}
+        >
           <p>
             A living recipe archive for cakes, cookies, and the sweet little
             obsessions that deserve their own opening credits.
@@ -137,7 +150,7 @@ export function Hero({ recipes, onRoulette, onOpenRecipe }: HeroProps) {
               Sweet roulette
             </button>
           </div>
-        </div>
+        </motion.div>
       </motion.div>
 
       <motion.div
@@ -159,16 +172,21 @@ export function Hero({ recipes, onRoulette, onOpenRecipe }: HeroProps) {
           <div className="hero-art-clip">
             <div className="hero-art-media">
               {slides.map((recipe, index) => (
-                <img
+                <RecipeImage
                   key={recipe.id}
                   className={index === activeIndex ? "is-active" : ""}
-                  src={recipe.image}
+                  recipe={recipe}
                   alt={index === activeIndex ? recipe.title : ""}
                   aria-hidden={index !== activeIndex}
                   loading={index < 2 ? "eager" : "lazy"}
-                  onError={(event) => {
-                    event.currentTarget.src = dessertHeroImage;
-                  }}
+                  sizes="(max-width: 900px) 86vw, 44vw"
+                  sharedName={
+                    transitioningRecipeId === recipe.id &&
+                    selectedRecipeId !== recipe.id &&
+                    index === activeIndex
+                      ? `recipe-image-${recipe.id}`
+                      : undefined
+                  }
                 />
               ))}
             </div>

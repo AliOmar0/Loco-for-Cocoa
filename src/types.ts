@@ -7,6 +7,12 @@ export type RecipeStep = {
   duration?: number;
 };
 
+export type ImageFocus = {
+  x: number;
+  y: number;
+  zoom: number;
+};
+
 export type Recipe = {
   id: string;
   title: string;
@@ -20,6 +26,7 @@ export type Recipe = {
   featured: boolean;
   published: boolean;
   image: string;
+  imageFocus?: ImageFocus;
   ingredients: string[];
   steps: RecipeStep[];
   notes: string;
@@ -28,4 +35,10 @@ export type Recipe = {
   accent: [string, string];
   createdAt: string;
   updatedAt: string;
+};
+
+export type RecipeRevision = {
+  id: string;
+  savedAt: string;
+  recipe: Recipe;
 };

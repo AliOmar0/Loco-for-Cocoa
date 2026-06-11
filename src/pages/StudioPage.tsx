@@ -11,6 +11,7 @@ import {
   FileText,
   GripVertical,
   Heart,
+  History,
   Image as ImageIcon,
   LayoutDashboard,
   LockKeyhole,
@@ -18,6 +19,7 @@ import {
   RotateCcw,
   Search,
   Sparkles,
+  TimerReset,
   Trash2,
   Upload,
   X,
@@ -31,6 +33,7 @@ import { dessertHeroImage } from "../lib/assets";
 import { categoryLabels, moodLabels, slugify } from "../lib/recipe";
 import { useRecipeStore } from "../store/useRecipeStore";
 import type { Recipe, RecipeCategory, RecipeMood } from "../types";
+import { RecipeImage } from "../components/RecipeImage";
 
 const ADMIN_PIN = "0420";
 
@@ -44,6 +47,9 @@ const recipeSchema = z.object({
   difficulty: z.enum(["Easy", "Medium", "Project"]),
   servings: z.number().min(1),
   image: z.string().min(1, "Add an image URL."),
+  imageX: z.number().min(0).max(100),
+  imageY: z.number().min(0).max(100),
+  imageZoom: z.number().min(1).max(1.6),
   ingredients: z
     .array(z.object({ value: z.string().min(1, "Ingredient cannot be empty.") }))
     .min(1),
@@ -74,6 +80,9 @@ const blankRecipe = (): RecipeFormData => ({
   difficulty: "Easy",
   servings: 8,
   image: dessertHeroImage,
+  imageX: 50,
+  imageY: 50,
+  imageZoom: 1,
   ingredients: [{ value: "" }, { value: "" }, { value: "" }],
   steps: [{ text: "", duration: undefined }, { text: "", duration: undefined }],
   notes: "",
@@ -94,6 +103,9 @@ function recipeToForm(recipe: Recipe): RecipeFormData {
     difficulty: recipe.difficulty,
     servings: recipe.servings,
     image: recipe.image,
+    imageX: recipe.imageFocus?.x ?? 50,
+    imageY: recipe.imageFocus?.y ?? 50,
+    imageZoom: recipe.imageFocus?.zoom ?? 1,
     ingredients: recipe.ingredients.map((value) => ({ value })),
     steps: recipe.steps.map((step) => ({ ...step })),
     notes: recipe.notes,
@@ -110,17 +122,26 @@ type RecipeEditorProps = {
   onDeleted: () => void;
 };
 
+const EMPTY_REVISIONS: never[] = [];
+
 function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
   const upsertRecipe = useRecipeStore((state) => state.upsertRecipe);
   const deleteRecipe = useRecipeStore((state) => state.deleteRecipe);
   const duplicateRecipe = useRecipeStore((state) => state.duplicateRecipe);
-  const [tab, setTab] = useState<"content" | "method" | "preview">("content");
+  const restoreRevision = useRecipeStore((state) => state.restoreRevision);
+  const revisionMap = useRecipeStore((state) => state.revisions);
+  const revisions = recipe ? revisionMap[recipe.id] || EMPTY_REVISIONS : EMPTY_REVISIONS;
+  const [tab, setTab] = useState<
+    "content" | "method" | "preview" | "history"
+  >("content");
   const [saved, setSaved] = useState(false);
+  const [autosaveState, setAutosaveState] = useState("Draft protected");
   const {
     register,
     control,
     handleSubmit,
     reset,
+    setValue,
     watch,
     formState: { errors, isDirty },
   } = useForm<RecipeFormData>({
@@ -131,12 +152,90 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
   const ingredientFields = useFieldArray({ control, name: "ingredients" });
   const stepFields = useFieldArray({ control, name: "steps" });
   const values = watch();
+  const draftKey = `loco-studio-draft-${recipe?.id || "new"}`;
+  const draftPayload = JSON.stringify(values);
 
   useEffect(() => {
-    reset(recipe ? recipeToForm(recipe) : blankRecipe());
+    const base = recipe ? recipeToForm(recipe) : blankRecipe();
+    const stored = localStorage.getItem(
+      `loco-studio-draft-${recipe?.id || "new"}`,
+    );
+    if (stored) {
+      try {
+        const draft = JSON.parse(stored) as {
+          updatedAt: string;
+          values: RecipeFormData;
+        };
+        const isNewer =
+          !recipe || new Date(draft.updatedAt) > new Date(recipe.updatedAt);
+        reset(isNewer ? draft.values : base);
+      } catch {
+        reset(base);
+      }
+    } else {
+      reset(base);
+    }
     setSaved(false);
+    setAutosaveState("Draft protected");
     setTab("content");
   }, [recipe, reset]);
+
+  useEffect(() => {
+    if (!isDirty) return;
+    setAutosaveState("Autosaving...");
+    const timer = window.setTimeout(() => {
+      localStorage.setItem(
+        draftKey,
+        JSON.stringify({
+          updatedAt: new Date().toISOString(),
+          values: JSON.parse(draftPayload),
+        }),
+      );
+      setAutosaveState("Autosaved locally");
+    }, 650);
+    return () => window.clearTimeout(timer);
+  }, [draftKey, draftPayload, isDirty]);
+
+  const qualityChecks = useMemo(
+    () => [
+      {
+        label: "A clear, scannable title",
+        ready: values.title.trim().length >= 4 && values.title.length <= 54,
+      },
+      {
+        label: "A useful archive hook",
+        ready: values.subtitle.trim().length >= 8,
+      },
+      {
+        label: "At least six ingredients",
+        ready: values.ingredients.filter((item) => item.value.trim()).length >= 6,
+      },
+      {
+        label: "At least four clear steps",
+        ready: values.steps.filter((step) => step.text.trim()).length >= 4,
+      },
+      {
+        label: "One practical timer",
+        ready: values.steps.some((step) => Number(step.duration) > 0),
+      },
+      {
+        label: "A baker's note",
+        ready: values.notes.trim().length >= 28,
+      },
+      {
+        label: "Image focal point reviewed",
+        ready:
+          values.imageX !== 50 ||
+          values.imageY !== 50 ||
+          values.imageZoom !== 1,
+      },
+    ],
+    [values],
+  );
+  const qualityScore = Math.round(
+    (qualityChecks.filter((item) => item.ready).length / qualityChecks.length) *
+      100,
+  );
 
   const submit = handleSubmit((data) => {
     const now = new Date().toISOString();
@@ -152,6 +251,11 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
       difficulty: data.difficulty,
       servings: data.servings,
       image: data.image,
+      imageFocus: {
+        x: data.imageX,
+        y: data.imageY,
+        zoom: data.imageZoom,
+      },
       ingredients: data.ingredients.map((item) => item.value),
       steps: data.steps,
       notes: data.notes,
@@ -164,6 +268,8 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
       updatedAt: now,
     };
     upsertRecipe(next);
+    localStorage.removeItem(draftKey);
+    setAutosaveState("Saved to archive");
     setSaved(true);
     reset(data);
     onSaved(id);
@@ -180,7 +286,7 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
         <div className="editor-state">
           <span className={isDirty ? "is-dirty" : ""}>
             {saved ? <Check size={13} /> : null}
-            {saved ? "Saved" : isDirty ? "Unsaved changes" : "All changes saved"}
+            {saved ? "Saved" : isDirty ? autosaveState : "All changes saved"}
           </span>
           <button className="studio-primary" type="submit">
             {values.published ? "Save & publish" : "Save draft"}
@@ -213,6 +319,36 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
         >
           <Eye size={15} />
           Live preview
+        </button>
+        <button
+          type="button"
+          className={tab === "history" ? "is-active" : ""}
+          onClick={() => setTab("history")}
+        >
+          <History size={15} />
+          Quality & history
+          <span>{qualityScore}</span>
+        </button>
+      </div>
+
+      <div className="editor-quality-strip">
+        <div
+          className="quality-ring"
+          style={{ "--quality": `${qualityScore}%` } as React.CSSProperties}
+        >
+          <strong>{qualityScore}</strong>
+        </div>
+        <div>
+          <span>Recipe readiness</span>
+          <strong>
+            {qualityScore >= 85
+              ? "Ready for the front page"
+              : `${qualityChecks.filter((item) => !item.ready).length} details left to polish`}
+          </strong>
+        </div>
+        <button type="button" onClick={() => setTab("history")}>
+          Review checklist
+          <ArrowUpRight size={14} />
         </button>
       </div>
 
@@ -293,6 +429,71 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
                   </div>
                   {errors.image && <small>{errors.image.message}</small>}
                 </label>
+                <div className="image-crop-editor wide-field">
+                  <div className="crop-preview">
+                    <RecipeImage
+                      recipe={{
+                        image: values.image || dessertHeroImage,
+                        imageFocus: {
+                          x: values.imageX,
+                          y: values.imageY,
+                          zoom: values.imageZoom,
+                        },
+                      }}
+                      alt=""
+                    />
+                    <span className="crop-crosshair" aria-hidden="true" />
+                  </div>
+                  <div className="crop-controls">
+                    <div>
+                      <span>Image crop</span>
+                      <strong>Choose the visual center</strong>
+                      <p>
+                        Set separate horizontal and vertical focus, then zoom
+                        until the archive crop feels intentional.
+                      </p>
+                    </div>
+                    <label>
+                      <span>Horizontal focus · {Math.round(values.imageX)}%</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        {...register("imageX", { valueAsNumber: true })}
+                      />
+                    </label>
+                    <label>
+                      <span>Vertical focus · {Math.round(values.imageY)}%</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="100"
+                        {...register("imageY", { valueAsNumber: true })}
+                      />
+                    </label>
+                    <label>
+                      <span>Crop zoom · {values.imageZoom.toFixed(2)}×</span>
+                      <input
+                        type="range"
+                        min="1"
+                        max="1.6"
+                        step="0.05"
+                        {...register("imageZoom", { valueAsNumber: true })}
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setValue("imageX", 50, { shouldDirty: true });
+                        setValue("imageY", 50, { shouldDirty: true });
+                        setValue("imageZoom", 1, { shouldDirty: true });
+                      }}
+                    >
+                      <RotateCcw size={14} />
+                      Center crop
+                    </button>
+                  </div>
+                </div>
                 <label>
                   <span>Total time</span>
                   <input type="number" {...register("time", { valueAsNumber: true })} />
@@ -472,12 +673,16 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
               </div>
               <article className="preview-card">
                 <div className="preview-image">
-                  <img
-                    src={values.image || dessertHeroImage}
-                    alt=""
-                    onError={(event) => {
-                      event.currentTarget.src = dessertHeroImage;
+                  <RecipeImage
+                    recipe={{
+                      image: values.image || dessertHeroImage,
+                      imageFocus: {
+                        x: values.imageX,
+                        y: values.imageY,
+                        zoom: values.imageZoom,
+                      },
                     }}
+                    alt=""
                   />
                   <div
                     style={{
@@ -503,6 +708,93 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
               This preview uses the same content model as the live visitor card.
               Save the recipe to publish changes to the archive.
             </p>
+          </motion.div>
+        )}
+
+        {tab === "history" && (
+          <motion.div
+            key="history"
+            className="editor-history"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+          >
+            <section className="quality-checklist">
+              <div className="history-section-heading">
+                <div>
+                  <span>Publishing checklist</span>
+                  <h3>{qualityScore}% recipe readiness</h3>
+                </div>
+                <Sparkles size={22} />
+              </div>
+              <div>
+                {qualityChecks.map((item) => (
+                  <button
+                    type="button"
+                    key={item.label}
+                    className={item.ready ? "is-ready" : ""}
+                    onClick={() =>
+                      setTab(
+                        item.label.includes("step") ||
+                          item.label.includes("timer") ||
+                          item.label.includes("ingredient") ||
+                          item.label.includes("note")
+                          ? "method"
+                          : "content",
+                      )
+                    }
+                  >
+                    <span>{item.ready ? <Check size={15} /> : "!"}</span>
+                    {item.label}
+                    <ArrowUpRight size={14} />
+                  </button>
+                ))}
+              </div>
+            </section>
+
+            <section className="revision-history">
+              <div className="history-section-heading">
+                <div>
+                  <span>Revision history</span>
+                  <h3>Recent saved versions</h3>
+                </div>
+                <History size={22} />
+              </div>
+              {recipe && revisions.length > 0 ? (
+                <div className="revision-list">
+                  {revisions.map((revision) => (
+                    <article key={revision.id}>
+                      <TimerReset size={16} />
+                      <div>
+                        <strong>{revision.recipe.title}</strong>
+                        <span>
+                          {new Date(revision.savedAt).toLocaleString([], {
+                            dateStyle: "medium",
+                            timeStyle: "short",
+                          })}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          restoreRevision(recipe.id, revision.id);
+                          localStorage.removeItem(draftKey);
+                          setAutosaveState("Revision restored");
+                        }}
+                      >
+                        Restore
+                      </button>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="revision-empty">
+                  <History size={24} />
+                  <strong>No previous saves yet</strong>
+                  <span>Each manual save keeps the version it replaces.</span>
+                </div>
+              )}
+            </section>
           </motion.div>
         )}
       </AnimatePresence>

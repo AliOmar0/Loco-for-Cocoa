@@ -12,7 +12,11 @@ A cinematic sweets recipe experience built with React, TypeScript, native WebGL,
 - Auto-rotating hero carousel powered by the published recipe archive
 - Motion-driven editorial recipe cards, layout transitions, and route loading
 - Recipe filtering, favorites, command search (`Ctrl/Cmd + K`), and sweet roulette
-- Live serving scaling, method completion, step timers, print/share controls, and screen-awake bake mode
+- Curated One bowl, No oven, 15 minutes, and Weekend project shelves
+- Pantry matcher that ranks recipes by ingredients already on hand
+- Guided mobile Bake Mode with ingredient checks, sticky step controls, timers, and screen wake lock
+- Live serving scaling, method completion, print/share controls, and shared card-to-detail image transitions
+- Responsive AVIF/WebP image delivery with focal-point and zoom support
 - Interactive Flavor Lab that recommends recipes from three craving controls
 - Interactive Field Notes with practical sensory baking cues
 - Persistent mobile section dock for Recipes, Flavor Lab, and Field Notes
@@ -24,7 +28,11 @@ A cinematic sweets recipe experience built with React, TypeScript, native WebGL,
 - Create, edit, publish, unpublish, duplicate, and delete recipes
 - React Hook Form and Zod validation
 - Dynamic ingredient and method fields with optional step timers
-- Live visitor-card preview and configurable recipe color accents
+- Image focal-point and zoom editor with a live visitor-card preview
+- Debounced local autosave for in-progress recipe drafts
+- Revision history with one-click restore for recent manual saves
+- Recipe quality checklist and publishing-readiness score
+- Configurable recipe color accents
 - Persistent browser storage through Zustand
 - JSON import/export and starter-data reset
 - Performance dashboard with category trends, archive health, and save rankings

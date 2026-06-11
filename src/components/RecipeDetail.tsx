@@ -1,5 +1,7 @@
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   Check,
   ChefHat,
   Clock3,
@@ -7,6 +9,7 @@ import {
   Heart,
   Minus,
   Plus,
+  Play,
   Printer,
   Share2,
   TimerReset,
@@ -16,15 +19,16 @@ import {
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { dessertHeroImage } from "../lib/assets";
 import { formatTime, moodLabels, scaleIngredient } from "../lib/recipe";
 import type { Recipe, RecipeStep } from "../types";
+import { RecipeImage } from "./RecipeImage";
 
 type RecipeDetailProps = {
   recipe: Recipe | null;
   favorite: boolean;
   onClose: () => void;
   onToggleFavorite: () => void;
+  sharedName?: string;
 };
 
 function StepTimer({ step }: { step: RecipeStep }) {
@@ -62,15 +66,22 @@ export function RecipeDetail({
   favorite,
   onClose,
   onToggleFavorite,
+  sharedName,
 }: RecipeDetailProps) {
   const [servings, setServings] = useState(recipe?.servings || 1);
   const [completed, setCompleted] = useState<number[]>([]);
+  const [checkedIngredients, setCheckedIngredients] = useState<number[]>([]);
+  const [bakeMode, setBakeMode] = useState(false);
+  const [activeStep, setActiveStep] = useState(0);
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
 
   useEffect(() => {
     if (!recipe) return;
     setServings(recipe.servings);
     setCompleted([]);
+    setCheckedIngredients([]);
+    setBakeMode(false);
+    setActiveStep(0);
   }, [recipe]);
 
   useEffect(() => {
@@ -93,6 +104,33 @@ export function RecipeDetail({
     return Math.round((completed.length / recipe.steps.length) * 100);
   }, [completed.length, recipe?.steps.length]);
 
+  const setStep = (index: number) => {
+    if (!recipe) return;
+    const next = Math.max(0, Math.min(recipe.steps.length - 1, index));
+    setActiveStep(next);
+    window.setTimeout(() => {
+      document
+        .querySelector(`[data-method-step="${next}"]`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 40);
+  };
+
+  const toggleBakeMode = async () => {
+    const next = !bakeMode;
+    setBakeMode(next);
+    if (next && !wakeLock && "wakeLock" in navigator) {
+      try {
+        setWakeLock(await navigator.wakeLock.request("screen"));
+      } catch {
+        setWakeLock(null);
+      }
+    }
+    if (!next && wakeLock) {
+      await wakeLock.release().catch(() => undefined);
+      setWakeLock(null);
+    }
+  };
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -106,7 +144,7 @@ export function RecipeDetail({
         >
           <button className="detail-backdrop" onClick={onClose} aria-label="Close recipe" />
           <motion.article
-            className="recipe-detail"
+            className={`recipe-detail ${bakeMode ? "is-bake-mode" : ""}`}
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
@@ -123,12 +161,11 @@ export function RecipeDetail({
             </div>
 
             <div className="detail-hero">
-              <img
-                src={recipe.image}
+              <RecipeImage
+                recipe={recipe}
                 alt={recipe.title}
-                onError={(event) => {
-                  event.currentTarget.src = dessertHeroImage;
-                }}
+                sizes="(max-width: 620px) 100vw, 94vw"
+                sharedName={sharedName}
               />
               <div
                 className="detail-gradient"
@@ -191,11 +228,26 @@ export function RecipeDetail({
 
                 <h3>What you need</h3>
                 <ul className="ingredient-list">
-                  {recipe.ingredients.map((ingredient) => (
-                    <li key={ingredient}>
-                      {scaleIngredient(ingredient, servings / recipe.servings)}
+                  {recipe.ingredients.map((ingredient, index) => {
+                    const checked = checkedIngredients.includes(index);
+                    return (
+                    <li key={ingredient} className={checked ? "is-checked" : ""}>
+                      <button
+                        onClick={() =>
+                          setCheckedIngredients((values) =>
+                            values.includes(index)
+                              ? values.filter((value) => value !== index)
+                              : [...values, index],
+                          )
+                        }
+                        aria-label={`${checked ? "Uncheck" : "Check"} ${ingredient}`}
+                      >
+                        <span>{checked && <Check size={13} />}</span>
+                        {scaleIngredient(ingredient, servings / recipe.servings)}
+                      </button>
                     </li>
-                  ))}
+                    );
+                  })}
                 </ul>
 
                 <div className="detail-action-grid">
@@ -219,19 +271,11 @@ export function RecipeDetail({
                     Print
                   </button>
                   <button
-                    className={wakeLock ? "is-active" : ""}
-                    onClick={async () => {
-                      if (wakeLock) {
-                        await wakeLock.release();
-                        setWakeLock(null);
-                      } else if ("wakeLock" in navigator) {
-                        const lock = await navigator.wakeLock.request("screen");
-                        setWakeLock(lock);
-                      }
-                    }}
+                    className={bakeMode ? "is-active" : ""}
+                    onClick={toggleBakeMode}
                   >
-                    <Zap size={16} />
-                    {wakeLock ? "Awake" : "Bake mode"}
+                    <Play size={16} />
+                    {bakeMode ? "Exit bake mode" : "Start bake mode"}
                   </button>
                 </div>
               </aside>
@@ -248,11 +292,33 @@ export function RecipeDetail({
                   </div>
                 </div>
 
+                {bakeMode && (
+                  <div className="bake-focus-card" role="status">
+                    <div>
+                      <span>
+                        Step {activeStep + 1} of {recipe.steps.length}
+                      </span>
+                      <strong>{recipe.steps[activeStep]?.text}</strong>
+                    </div>
+                    <StepTimer
+                      key={activeStep}
+                      step={recipe.steps[activeStep]}
+                    />
+                  </div>
+                )}
+
                 <ol className="method-list">
                   {recipe.steps.map((step, index) => {
                     const isComplete = completed.includes(index);
                     return (
-                      <li key={`${step.text}-${index}`} className={isComplete ? "is-complete" : ""}>
+                      <li
+                        key={`${step.text}-${index}`}
+                        data-method-step={index}
+                        className={`${isComplete ? "is-complete" : ""} ${
+                          bakeMode && activeStep === index ? "is-active-step" : ""
+                        }`}
+                        onClick={() => bakeMode && setActiveStep(index)}
+                      >
                         <button
                           className="step-check"
                           onClick={() =>
@@ -286,6 +352,44 @@ export function RecipeDetail({
                   </button>
                 </div>
               </section>
+            </div>
+
+            <div className={`bake-mode-bar ${bakeMode ? "is-active" : ""}`}>
+              {bakeMode ? (
+                <>
+                  <button
+                    onClick={() => setStep(activeStep - 1)}
+                    disabled={activeStep === 0}
+                    aria-label="Previous step"
+                  >
+                    <ChevronLeft size={18} />
+                  </button>
+                  <button className="bake-mode-status" onClick={() => setStep(activeStep)}>
+                    <span>
+                      Step {activeStep + 1} / {recipe.steps.length}
+                    </span>
+                    <strong>
+                      {wakeLock ? "Screen awake" : "Bake mode active"}
+                    </strong>
+                  </button>
+                  <button
+                    onClick={() => setStep(activeStep + 1)}
+                    disabled={activeStep === recipe.steps.length - 1}
+                    aria-label="Next step"
+                  >
+                    <ChevronRight size={18} />
+                  </button>
+                  <button className="bake-mode-exit" onClick={toggleBakeMode}>
+                    Done
+                  </button>
+                </>
+              ) : (
+                <button className="bake-mode-start" onClick={toggleBakeMode}>
+                  <Play size={17} fill="currentColor" />
+                  Start guided bake
+                  <span>{recipe.steps.length} steps</span>
+                </button>
+              )}
             </div>
           </motion.article>
         </motion.div>

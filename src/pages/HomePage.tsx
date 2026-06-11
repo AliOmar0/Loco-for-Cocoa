@@ -1,10 +1,13 @@
 import { ArrowUpRight, Camera, Check, Star } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import { CommandPalette } from "../components/CommandPalette";
+import { CuratedShelves } from "../components/CuratedShelves";
 import { FlavorLab } from "../components/FlavorLab";
 import { FieldNotes } from "../components/FieldNotes";
 import { Hero } from "../components/Hero";
+import { PantryMatcher } from "../components/PantryMatcher";
 import { RecipeDetail } from "../components/RecipeDetail";
 import { RecipeExplorer } from "../components/RecipeExplorer";
 import { SiteHeader } from "../components/SiteHeader";
@@ -19,19 +22,47 @@ export function HomePage() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
+  const [transitioningRecipeId, setTransitioningRecipeId] = useState<string | null>(
+    null,
+  );
 
   const published = useMemo(
     () => recipes.filter((recipe) => recipe.published),
     [recipes],
   );
 
+  const openRecipe = useCallback((recipe: Recipe) => {
+    const transitionDocument = document as Document & {
+      startViewTransition?: (callback: () => void) => {
+        finished: Promise<void>;
+      };
+    };
+
+    flushSync(() => setTransitioningRecipeId(recipe.id));
+    if (!transitionDocument.startViewTransition) {
+      setSelectedRecipe(recipe);
+      window.setTimeout(() => setTransitioningRecipeId(null), 450);
+      return;
+    }
+
+    const transition = transitionDocument.startViewTransition(() => {
+      flushSync(() => setSelectedRecipe(recipe));
+    });
+    transition.finished.finally(() => setTransitioningRecipeId(null));
+  }, []);
+
+  const closeRecipe = useCallback(() => {
+    setSelectedRecipe(null);
+    setTransitioningRecipeId(null);
+  }, []);
+
   const roulette = useCallback(() => {
     const candidates = published.filter(
       (recipe) => recipe.id !== selectedRecipe?.id,
     );
     const recipe = candidates[Math.floor(Math.random() * candidates.length)];
-    if (recipe) setSelectedRecipe(recipe);
-  }, [published, selectedRecipe?.id]);
+    if (recipe) openRecipe(recipe);
+  }, [openRecipe, published, selectedRecipe?.id]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -58,7 +89,9 @@ export function HomePage() {
         <Hero
           recipes={published}
           onRoulette={roulette}
-          onOpenRecipe={setSelectedRecipe}
+          onOpenRecipe={openRecipe}
+          transitioningRecipeId={transitioningRecipeId}
+          selectedRecipeId={selectedRecipe?.id}
         />
 
         <div className="kinetic-strip" aria-hidden="true">
@@ -88,11 +121,17 @@ export function HomePage() {
           favorites={favorites}
           favoritesOnly={favoritesOnly}
           onFavoritesOnlyChange={setFavoritesOnly}
-          onOpenRecipe={setSelectedRecipe}
+          onOpenRecipe={openRecipe}
           onToggleFavorite={toggleFavorite}
+          transitioningRecipeId={transitioningRecipeId}
+          selectedRecipeId={selectedRecipe?.id}
         />
 
-        <FlavorLab recipes={recipes} onOpenRecipe={setSelectedRecipe} />
+        <CuratedShelves recipes={recipes} onOpenRecipe={openRecipe} />
+
+        <PantryMatcher recipes={recipes} onOpenRecipe={openRecipe} />
+
+        <FlavorLab recipes={recipes} onOpenRecipe={openRecipe} />
 
         <FieldNotes />
 
@@ -163,16 +202,21 @@ export function HomePage() {
       <RecipeDetail
         recipe={selectedRecipe}
         favorite={selectedRecipe ? favorites.includes(selectedRecipe.id) : false}
-        onClose={() => setSelectedRecipe(null)}
+        onClose={closeRecipe}
         onToggleFavorite={() =>
           selectedRecipe && toggleFavorite(selectedRecipe.id)
+        }
+        sharedName={
+          selectedRecipe && transitioningRecipeId === selectedRecipe.id
+            ? `recipe-image-${selectedRecipe.id}`
+            : undefined
         }
       />
       <CommandPalette
         open={searchOpen}
         recipes={recipes}
         onClose={() => setSearchOpen(false)}
-        onSelect={setSelectedRecipe}
+        onSelect={openRecipe}
       />
     </div>
   );
