@@ -160,7 +160,7 @@ export function RecipeDetail({
   const realisticPortions = session?.realisticPortions ?? false;
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
   const [dietaryFilters, setDietaryFilters] = useState<DietaryTag[]>([]);
-  const [chaoticUnits, setChaoticUnits] = useState(false);
+  const [chaoticIngredients, setChaoticIngredients] = useState<number[]>([]);
   const [substitution, setSubstitution] = useState<{
     ingredient: string;
     option: SubstitutionOption;
@@ -192,6 +192,10 @@ export function RecipeDetail({
       });
     }
   }, [bakeSessions, recipe, updateBakeSession]);
+
+  useEffect(() => {
+    setChaoticIngredients([]);
+  }, [recipe?.id]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -539,11 +543,23 @@ export function RecipeDetail({
                 <div className="ingredient-heading">
                   <h3>What you need</h3>
                   <button
-                    className={chaoticUnits ? "is-active" : ""}
-                    onClick={() => setChaoticUnits((value) => !value)}
+                    className={
+                      chaoticIngredients.length === recipe.ingredients.length
+                        ? "is-active"
+                        : ""
+                    }
+                    onClick={() =>
+                      setChaoticIngredients((current) =>
+                        current.length === recipe.ingredients.length
+                          ? []
+                          : recipe.ingredients.map((_, index) => index),
+                      )
+                    }
                   >
                     <Scale size={14} />
-                    {chaoticUnits ? "Use real units" : "Chaos units"}
+                    {chaoticIngredients.length === recipe.ingredients.length
+                      ? "Use real units"
+                      : "Chaos all units"}
                   </button>
                 </div>
 
@@ -578,12 +594,31 @@ export function RecipeDetail({
                         aria-label={`${checked ? "Uncheck" : "Check"} ${ingredient}`}
                       >
                         <span>{checked && <Check size={13} />}</span>
-                        {chaoticUnits
+                        {chaoticIngredients.includes(index)
                           ? absurdUnit(ingredient)
                           : scaleIngredient(
                               ingredient,
                               realisticPortions ? 1 : servings / recipe.servings,
                             )}
+                      </button>
+                      <button
+                        className={`unit-chaos-button ${
+                          chaoticIngredients.includes(index) ? "is-active" : ""
+                        }`}
+                        onClick={() =>
+                          setChaoticIngredients((current) =>
+                            current.includes(index)
+                              ? current.filter((item) => item !== index)
+                              : [...current, index],
+                          )
+                        }
+                        aria-label={`${
+                          chaoticIngredients.includes(index)
+                            ? "Restore standard units for"
+                            : "Convert to chaotic units for"
+                        } ${ingredient}`}
+                      >
+                        <Scale size={14} />
                       </button>
                       <button
                         className="substitution-roulette"

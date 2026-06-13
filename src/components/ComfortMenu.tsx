@@ -117,8 +117,8 @@ export function ComfortMenu() {
             >
               <MousePointer2 size={16} />
               <span>
-                <strong>Whisk cursor</strong>
-                Cocoa powder trails on desktop
+                <strong>Cookie cursor</strong>
+                Chocolate-chip cursor with cocoa powder trails
               </span>
             </button>
           </motion.div>

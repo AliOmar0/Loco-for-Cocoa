@@ -2,7 +2,7 @@ import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ComfortMenu } from "./components/ComfortMenu";
 import { DistractionLoader } from "./components/DistractionLoader";
-import { WhiskCursor } from "./components/WhiskCursor";
+import { CookieCursor } from "./components/CookieCursor";
 import { HomePage } from "./pages/HomePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
 
@@ -15,7 +15,7 @@ const StudioPage = lazy(() =>
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <WhiskCursor />
+      <CookieCursor />
       <ComfortMenu />
       <Suspense
         fallback={

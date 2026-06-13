@@ -23,7 +23,7 @@ native WebGL/GLSL, Motion, Zustand, React Hook Form, Zod, and Vite PWA.
 - Voice commands and experimental FaceDetector-powered nod navigation for messy hands
 - Squishy save/print interactions, completion confetti, haptics, and tiny audio feedback
 - Comfort menu for text size, contrast, visual intensity, sounds, and cursor effects
-- Desktop whisk cursor with fading cocoa and sugar trails
+- Desktop chocolate-chip cookie cursor with fading cocoa and sugar trails
 - Lazy interactive Three.js cocoa-bean loading scene and dropped-cake 404 page
 - Recipe-driven GLSL palette and texture transitions
 - Live serving scaling, method completion, print/share controls, and shared card-to-detail image transitions
@@ -84,6 +84,16 @@ frontend build:
 VITE_API_URL=https://your-vercel-project.vercel.app
 ```
 
+After the backend is deployed, open the GitHub repository and go to
+**Settings → Secrets and variables → Actions → Variables**. Create a repository
+variable named `VITE_API_URL` with the production Vercel URL, then rerun the
+**Deploy to GitHub Pages** workflow. The workflow already passes that variable
+to the Vite build.
+
+`VITE_API_URL` is public by design because it is embedded in the browser bundle.
+Never put database credentials, Blob tokens, password hashes, or signing secrets
+in a `VITE_*` variable.
+
 The frontend expects these authenticated endpoints:
 
 ```text
@@ -105,6 +115,17 @@ POST /api/archive/sync
 The Vercel API should allow CORS only from the GitHub Pages production origin
 and local development origin. Authentication secrets and database credentials
 must stay on Vercel; never place them in `VITE_*` variables.
+
+Recommended private Vercel variables:
+
+```env
+DATABASE_URL=provided-by-your-postgres-integration
+BLOB_READ_WRITE_TOKEN=provided-by-vercel-blob
+JWT_SECRET=a-long-random-secret
+ALLOWED_ORIGINS=https://aliomar0.github.io,http://127.0.0.1:5173
+OWNER_EMAIL=your-owner-email
+OWNER_PASSWORD_HASH=an-argon2id-password-hash
+```
 
 ## Production
 

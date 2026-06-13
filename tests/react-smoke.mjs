@@ -219,12 +219,14 @@ await evaluate(`document.querySelector(".ingredient-list button").click()`);
 await waitFor(`document.querySelector(".ingredient-list li").classList.contains("is-checked")`);
 const advancedRecipeTools = await evaluate(`({
   substitutions: document.querySelectorAll(".substitution-roulette").length,
+  unitConverters: document.querySelectorAll(".unit-chaos-button").length,
   portionToggle: Boolean(document.querySelector(".portion-personality")),
   handsFree: document.querySelectorAll(".hands-free-controls button").length,
   messMeter: document.querySelectorAll(".mess-meter i").length
 })`);
 if (
   advancedRecipeTools.substitutions < 1 ||
+  advancedRecipeTools.unitConverters < 1 ||
   !advancedRecipeTools.portionToggle ||
   advancedRecipeTools.handsFree !== 2 ||
   advancedRecipeTools.messMeter !== 5

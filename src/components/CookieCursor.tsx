@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { useExperienceStore } from "../store/useExperienceStore";
 
-export function WhiskCursor() {
+export function CookieCursor() {
   const cursorRef = useRef<HTMLDivElement>(null);
   const trailRef = useRef<HTMLDivElement>(null);
   const enabled = useExperienceStore(
@@ -14,7 +14,7 @@ export function WhiskCursor() {
     const finePointer = window.matchMedia("(pointer: fine)").matches;
     if (!cursor || !trail || !enabled || !finePointer) return;
 
-    document.body.classList.add("has-whisk-cursor");
+    document.body.classList.add("has-cookie-cursor");
     let previous = { x: window.innerWidth / 2, y: window.innerHeight / 2, at: 0 };
     let particleCooldown = 0;
 
@@ -52,7 +52,7 @@ export function WhiskCursor() {
     document.documentElement.addEventListener("mouseenter", onEnter);
 
     return () => {
-      document.body.classList.remove("has-whisk-cursor");
+      document.body.classList.remove("has-cookie-cursor");
       window.removeEventListener("pointermove", onMove);
       document.documentElement.removeEventListener("mouseleave", onLeave);
       document.documentElement.removeEventListener("mouseenter", onEnter);
@@ -64,12 +64,17 @@ export function WhiskCursor() {
 
   return (
     <>
-      <div className="whisk-cursor is-hidden" ref={cursorRef} aria-hidden="true">
-        <svg viewBox="0 0 32 52">
-          <path d="M22 2 10 23" />
-          <path d="M9 23c-8 10-5 24 3 25 8 1 13-13 6-23" />
-          <path d="M12 24c-5 11-2 23 2 23s8-12 3-23" />
-          <path d="M15 24c-2 11-1 22 1 22 3 0 5-11 2-21" />
+      <div className="cookie-cursor is-hidden" ref={cursorRef} aria-hidden="true">
+        <svg viewBox="0 0 42 42">
+          <path
+            className="cookie-dough"
+            d="M35.7 19.2a6.2 6.2 0 0 1-5.4-9.3A17.2 17.2 0 1 0 38 24.1a6.1 6.1 0 0 1-2.3-4.9Z"
+          />
+          <circle cx="13" cy="14" r="2.4" />
+          <circle cx="23.4" cy="25.8" r="2.8" />
+          <circle cx="12.8" cy="29.4" r="2" />
+          <circle cx="25.8" cy="13.8" r="1.8" />
+          <circle cx="31.2" cy="31" r="1.6" />
         </svg>
       </div>
       <div className="cursor-trail-layer" ref={trailRef} aria-hidden="true" />

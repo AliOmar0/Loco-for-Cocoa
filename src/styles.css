@@ -5981,42 +5981,44 @@ html[data-visual-intensity="reduced"] .art-chip {
 }
 
 @media (pointer: fine) {
-  body.has-whisk-cursor,
-  body.has-whisk-cursor a,
-  body.has-whisk-cursor button,
-  body.has-whisk-cursor input,
-  body.has-whisk-cursor select,
-  body.has-whisk-cursor textarea {
+  body.has-cookie-cursor,
+  body.has-cookie-cursor a,
+  body.has-cookie-cursor button,
+  body.has-cookie-cursor input,
+  body.has-cookie-cursor select,
+  body.has-cookie-cursor textarea {
     cursor: none !important;
   }
 }
 
-.whisk-cursor {
+.cookie-cursor {
   position: fixed;
   z-index: 250;
-  top: -8px;
-  left: -7px;
-  width: 26px;
-  height: 43px;
+  top: -13px;
+  left: -13px;
+  width: 32px;
+  height: 32px;
   pointer-events: none;
-  transform-origin: 6px 6px;
+  transform-origin: center;
   transition: opacity 120ms ease;
 }
 
-.whisk-cursor.is-hidden {
+.cookie-cursor.is-hidden {
   opacity: 0;
 }
 
-.whisk-cursor svg {
+.cookie-cursor svg {
   width: 100%;
   height: 100%;
   overflow: visible;
-  filter: drop-shadow(0 3px 4px rgba(38, 13, 11, 0.26));
-  fill: none;
-  stroke: #d83252;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 2.4;
+  filter: drop-shadow(0 3px 4px rgba(38, 13, 11, 0.3));
+  fill: #4b1b13;
+}
+
+.cookie-cursor .cookie-dough {
+  fill: #d78b45;
+  stroke: #8a4827;
+  stroke-width: 1.5;
 }
 
 .cursor-trail-layer {
@@ -6285,7 +6287,7 @@ html[data-visual-intensity="reduced"] .art-chip {
 
 .ingredient-list li {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 32px;
+  grid-template-columns: minmax(0, 1fr) 32px 32px;
   align-items: center;
   gap: 5px;
 }
@@ -6294,7 +6296,8 @@ html[data-visual-intensity="reduced"] .art-chip {
   grid-template-columns: 22px minmax(0, 1fr);
 }
 
-.ingredient-list .substitution-roulette {
+.ingredient-list .substitution-roulette,
+.ingredient-list .unit-chaos-button {
   display: grid;
   width: 32px;
   height: 32px;
@@ -6309,6 +6312,12 @@ html[data-visual-intensity="reduced"] .art-chip {
 .ingredient-list .substitution-roulette:hover {
   transform: rotate(10deg);
   border-color: var(--cherry);
+}
+
+.ingredient-list .unit-chaos-button.is-active {
+  border-color: var(--cherry);
+  background: var(--cherry);
+  color: white;
 }
 
 .substitution-result {
