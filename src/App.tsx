@@ -1,4 +1,4 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
 import { ComfortMenu } from "./components/ComfortMenu";
 import { DistractionLoader } from "./components/DistractionLoader";
@@ -6,6 +6,7 @@ import { CookieCursor } from "./components/CookieCursor";
 import { backendConfigured, getPublicArchive } from "./lib/backend";
 import { HomePage } from "./pages/HomePage";
 import { NotFoundPage } from "./pages/NotFoundPage";
+import { RecipePage } from "./pages/RecipePage";
 import { useRecipeStore } from "./store/useRecipeStore";
 
 const StudioPage = lazy(() =>
@@ -15,6 +16,7 @@ const StudioPage = lazy(() =>
 );
 
 export default function App() {
+  const [archiveReady, setArchiveReady] = useState(!backendConfigured);
   const replaceRecipes = useRecipeStore((state) => state.replaceRecipes);
   const replaceCollections = useRecipeStore(
     (state) => state.replaceCollections,
@@ -31,6 +33,9 @@ export default function App() {
       })
       .catch((error) => {
         console.error("Unable to refresh the public recipe archive:", error);
+      })
+      .finally(() => {
+        if (!cancelled) setArchiveReady(true);
       });
     return () => {
       cancelled = true;
@@ -48,6 +53,10 @@ export default function App() {
       >
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route
+            path="/recipes/:recipeId"
+            element={<RecipePage archiveReady={archiveReady} />}
+          />
           <Route path="/studio" element={<StudioPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>

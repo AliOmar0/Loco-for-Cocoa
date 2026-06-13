@@ -1,9 +1,9 @@
-import { serviceStatus } from "../server/config";
+import { serviceStatus } from "../server/config.js";
 import {
   json,
   methodNotAllowed,
   preflight,
-} from "../server/cors";
+} from "../server/cors.js";
 
 export default {
   async fetch(request: Request) {

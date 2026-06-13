@@ -56,6 +56,7 @@ export type Recipe = {
   realisticYield?: string;
   rating: number;
   saves: number;
+  views?: number;
   accent: [string, string];
   createdAt: string;
   updatedAt: string;

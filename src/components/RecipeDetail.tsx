@@ -24,7 +24,6 @@ import {
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { formatTime, moodLabels, scaleIngredient } from "../lib/recipe";
 import {
   absurdUnit,
@@ -45,7 +44,7 @@ import type {
 import { RecipeImage } from "./RecipeImage";
 
 type RecipeDetailProps = {
-  recipe: Recipe | null;
+  recipe: Recipe;
   favorite: boolean;
   onClose: () => void;
   onToggleFavorite: () => void;
@@ -167,6 +166,7 @@ export function RecipeDetail({
   } | null>(null);
   const [voiceActive, setVoiceActive] = useState(false);
   const [gestureActive, setGestureActive] = useState(false);
+  const [extrasOpen, setExtrasOpen] = useState(false);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const gestureVideo = useRef<HTMLVideoElement>(null);
   const gestureStream = useRef<MediaStream | null>(null);
@@ -196,14 +196,6 @@ export function RecipeDetail({
   useEffect(() => {
     setChaoticIngredients([]);
   }, [recipe?.id]);
-
-  useEffect(() => {
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", closeOnEscape);
-    return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
 
   useEffect(
     () => () => {
@@ -418,33 +410,20 @@ export function RecipeDetail({
     });
   };
 
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <AnimatePresence>
-      {recipe && (
-        <motion.div
-          className="recipe-detail-layer"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-        >
-          <button className="detail-backdrop" onClick={onClose} aria-label="Close recipe" />
+  return (
           <motion.article
             className={`recipe-detail ${bakeMode ? "is-bake-mode" : ""}`}
-            initial={{ x: "100%" }}
-            animate={{ x: 0 }}
-            exit={{ x: "100%" }}
-            transition={{ type: "spring", damping: 34, stiffness: 260 }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.28, ease: "easeOut" }}
           >
             <div className="detail-rail">
-              <button onClick={onClose} aria-label="Close recipe">
+              <button onClick={onClose} aria-label="Back to recipes">
                 <ArrowLeft size={19} />
+                <span>Back to archive</span>
               </button>
               <span>Recipe / {recipe.id}</span>
-              <button onClick={onClose} aria-label="Close recipe">
-                <X size={19} />
-              </button>
+              <span className="detail-rail-status">Loco for Cocoa</span>
             </div>
 
             <div className="detail-hero">
@@ -543,48 +522,78 @@ export function RecipeDetail({
                 <div className="ingredient-heading">
                   <h3>What you need</h3>
                   <button
-                    className={
-                      chaoticIngredients.length === recipe.ingredients.length
-                        ? "is-active"
-                        : ""
-                    }
-                    onClick={() =>
-                      setChaoticIngredients((current) =>
-                        current.length === recipe.ingredients.length
-                          ? []
-                          : recipe.ingredients.map((_, index) => index),
-                      )
-                    }
+                    className={extrasOpen ? "is-active" : ""}
+                    onClick={() => {
+                      setExtrasOpen((current) => {
+                        if (current) setSubstitution(null);
+                        return !current;
+                      });
+                    }}
+                    aria-expanded={extrasOpen}
                   >
-                    <Scale size={14} />
-                    {chaoticIngredients.length === recipe.ingredients.length
-                      ? "Use real units"
-                      : "Chaos all units"}
+                    <Sparkles size={14} />
+                    {extrasOpen ? "Hide extras" : "Kitchen extras"}
                   </button>
                 </div>
 
-                <div className="dietary-filters">
-                  <span>Emergency filters</span>
-                  <div>
-                    {(Object.keys(dietaryLabels) as DietaryTag[]).map((tag) => (
+                <AnimatePresence initial={false}>
+                  {extrasOpen && (
+                    <motion.div
+                      className="recipe-extras-panel"
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                    >
                       <button
-                        key={tag}
-                        className={dietaryFilters.includes(tag) ? "is-active" : ""}
+                        className={`extras-chaos-toggle ${
+                          chaoticIngredients.length === recipe.ingredients.length
+                            ? "is-active"
+                            : ""
+                        }`}
                         onClick={() =>
-                          setDietaryFilters((current) =>
-                            current.includes(tag)
-                              ? current.filter((item) => item !== tag)
-                              : [...current, tag],
+                          setChaoticIngredients((current) =>
+                            current.length === recipe.ingredients.length
+                              ? []
+                              : recipe.ingredients.map((_, index) => index),
                           )
                         }
                       >
-                        {dietaryLabels[tag]}
+                        <Scale size={14} />
+                        {chaoticIngredients.length === recipe.ingredients.length
+                          ? "Restore standard units"
+                          : "Convert every unit to chaos"}
                       </button>
-                    ))}
-                  </div>
-                </div>
+                      <div className="dietary-filters">
+                        <span>Emergency substitution filters</span>
+                        <div>
+                          {(Object.keys(dietaryLabels) as DietaryTag[]).map((tag) => (
+                            <button
+                              key={tag}
+                              className={
+                                dietaryFilters.includes(tag) ? "is-active" : ""
+                              }
+                              onClick={() =>
+                                setDietaryFilters((current) =>
+                                  current.includes(tag)
+                                    ? current.filter((item) => item !== tag)
+                                    : [...current, tag],
+                                )
+                              }
+                            >
+                              {dietaryLabels[tag]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <p>
+                        Use the scale and dice controls beside an ingredient for
+                        absurd measurements or a practical substitution.
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
-                <ul className="ingredient-list">
+                <ul className={`ingredient-list ${extrasOpen ? "has-extras" : ""}`}>
                   {recipe.ingredients.map((ingredient, index) => {
                     const checked = checkedIngredients.includes(index);
                     return (
@@ -601,39 +610,43 @@ export function RecipeDetail({
                               realisticPortions ? 1 : servings / recipe.servings,
                             )}
                       </button>
-                      <button
-                        className={`unit-chaos-button ${
-                          chaoticIngredients.includes(index) ? "is-active" : ""
-                        }`}
-                        onClick={() =>
-                          setChaoticIngredients((current) =>
-                            current.includes(index)
-                              ? current.filter((item) => item !== index)
-                              : [...current, index],
-                          )
-                        }
-                        aria-label={`${
-                          chaoticIngredients.includes(index)
-                            ? "Restore standard units for"
-                            : "Convert to chaotic units for"
-                        } ${ingredient}`}
-                      >
-                        <Scale size={14} />
-                      </button>
-                      <button
-                        className="substitution-roulette"
-                        onClick={() => spinSubstitution(ingredient)}
-                        aria-label={`Spin emergency substitution for ${ingredient}`}
-                      >
-                        <Dices size={15} />
-                      </button>
+                      {extrasOpen && (
+                        <>
+                          <button
+                            className={`unit-chaos-button ${
+                              chaoticIngredients.includes(index) ? "is-active" : ""
+                            }`}
+                            onClick={() =>
+                              setChaoticIngredients((current) =>
+                                current.includes(index)
+                                  ? current.filter((item) => item !== index)
+                                  : [...current, index],
+                              )
+                            }
+                            aria-label={`${
+                              chaoticIngredients.includes(index)
+                                ? "Restore standard units for"
+                                : "Convert to chaotic units for"
+                            } ${ingredient}`}
+                          >
+                            <Scale size={14} />
+                          </button>
+                          <button
+                            className="substitution-roulette"
+                            onClick={() => spinSubstitution(ingredient)}
+                            aria-label={`Spin emergency substitution for ${ingredient}`}
+                          >
+                            <Dices size={15} />
+                          </button>
+                        </>
+                      )}
                     </li>
                     );
                   })}
                 </ul>
 
                 <AnimatePresence>
-                  {substitution && (
+                  {extrasOpen && substitution && (
                     <motion.div
                       className={`substitution-result ${
                         substitution.option.reliable ? "is-real" : "is-chaos"
@@ -710,7 +723,7 @@ export function RecipeDetail({
                   </button>
                 </div>
 
-                <div className="hands-free-controls">
+                {extrasOpen && <div className="hands-free-controls">
                   <button
                     className={voiceActive ? "is-active" : ""}
                     onClick={toggleVoice}
@@ -731,7 +744,7 @@ export function RecipeDetail({
                     advances the method.
                   </p>
                   <video ref={gestureVideo} muted playsInline aria-hidden="true" />
-                </div>
+                </div>}
               </aside>
 
               <section className="method-panel">
@@ -871,9 +884,5 @@ export function RecipeDetail({
               </div>
             )}
           </motion.article>
-        </motion.div>
-      )}
-    </AnimatePresence>,
-    document.body,
   );
 }

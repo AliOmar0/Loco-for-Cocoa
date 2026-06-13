@@ -91,6 +91,23 @@ export function getPublicArchive() {
   return request<CloudArchive>("/api/public/archive");
 }
 
+function getVisitorId() {
+  const storageKey = "loco-for-cocoa-visitor";
+  const existing = window.localStorage.getItem(storageKey);
+  if (existing) return existing;
+  const visitorId = window.crypto.randomUUID();
+  window.localStorage.setItem(storageKey, visitorId);
+  return visitorId;
+}
+
+export function recordRecipeView(recipeId: string) {
+  if (!backendConfigured) return Promise.resolve({ ok: false });
+  return request<{ ok: boolean }>("/api/public/views", {
+    method: "POST",
+    body: JSON.stringify({ recipeId, visitorId: getVisitorId() }),
+  });
+}
+
 export function syncArchive(
   recipes: Recipe[],
   collections: RecipeCollection[],

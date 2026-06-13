@@ -1,11 +1,11 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
-import { requireOwner } from "../server/auth";
+import { requireOwner } from "../server/auth.js";
 import {
   json,
   methodNotAllowed,
   preflight,
   publicError,
-} from "../server/cors";
+} from "../server/cors.js";
 
 export default {
   async fetch(request: Request) {

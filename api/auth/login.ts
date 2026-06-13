@@ -1,11 +1,11 @@
-import { authenticateOwner } from "../../server/auth";
+import { authenticateOwner } from "../../server/auth.js";
 import {
   json,
   methodNotAllowed,
   preflight,
   publicError,
-} from "../../server/cors";
-import { loginSchema } from "../../server/validation";
+} from "../../server/cors.js";
+import { loginSchema } from "../../server/validation.js";
 
 export default {
   async fetch(request: Request) {

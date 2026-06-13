@@ -1,6 +1,6 @@
 import { neon } from "@neondatabase/serverless";
-import type { Recipe, RecipeCollection } from "../src/types";
-import { getDatabaseUrl } from "./config";
+import type { Recipe, RecipeCollection } from "../src/types.js";
+import { getDatabaseUrl } from "./config.js";
 
 export type CloudArchive = {
   recipes: Recipe[];
@@ -50,6 +50,19 @@ async function readyDatabase() {
       tx`
         CREATE INDEX IF NOT EXISTS archive_revisions_owner_created_idx
         ON archive_revisions (owner_email, created_at DESC)
+      `,
+      tx`
+        CREATE TABLE IF NOT EXISTS recipe_views (
+          recipe_id TEXT NOT NULL,
+          visitor_id TEXT NOT NULL,
+          viewed_on DATE NOT NULL DEFAULT CURRENT_DATE,
+          viewed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (recipe_id, visitor_id, viewed_on)
+        )
+      `,
+      tx`
+        CREATE INDEX IF NOT EXISTS recipe_views_recipe_idx
+        ON recipe_views (recipe_id)
       `,
     ])
     .then(() => undefined)
@@ -149,4 +162,26 @@ export async function saveArchive(
   const row = results[1][0] as ArchiveRow | undefined;
   if (!row) throw new Error("Archive sync returned no data.");
   return mapArchive(row);
+}
+
+export async function recordRecipeView(recipeId: string, visitorId: string) {
+  const sql = await readyDatabase();
+  await sql`
+    INSERT INTO recipe_views (recipe_id, visitor_id)
+    VALUES (${recipeId}, ${visitorId})
+    ON CONFLICT (recipe_id, visitor_id, viewed_on)
+    DO UPDATE SET viewed_at = NOW()
+  `;
+}
+
+export async function loadRecipeViews() {
+  const sql = await readyDatabase();
+  const rows = await sql`
+    SELECT recipe_id, COUNT(*)::int AS views
+    FROM recipe_views
+    GROUP BY recipe_id
+  `;
+  return new Map(
+    rows.map((row) => [String(row.recipe_id), Number(row.views)]),
+  );
 }

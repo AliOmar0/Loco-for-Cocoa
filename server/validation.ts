@@ -26,3 +26,8 @@ export const archiveSchema = z.object({
   recipes: z.array(recipeSchema).max(500),
   collections: z.array(collectionSchema).max(100),
 });
+
+export const recipeViewSchema = z.object({
+  recipeId: z.string().min(1).max(180),
+  visitorId: z.string().min(8).max(180),
+});

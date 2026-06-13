@@ -1,6 +1,6 @@
 import { verify } from "@node-rs/argon2";
 import { jwtVerify, SignJWT } from "jose";
-import { getAuthConfig } from "./config";
+import { getAuthConfig } from "./config.js";
 
 const encoder = new TextEncoder();
 const issuer = "loco-for-cocoa-api";

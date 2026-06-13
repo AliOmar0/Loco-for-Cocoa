@@ -1,11 +1,11 @@
-import { getOwnerEmail } from "../../server/config";
-import { loadArchive } from "../../server/database";
+import { getOwnerEmail } from "../../server/config.js";
+import { loadArchive, loadRecipeViews } from "../../server/database.js";
 import {
   json,
   methodNotAllowed,
   preflight,
   publicError,
-} from "../../server/cors";
+} from "../../server/cors.js";
 
 export default {
   async fetch(request: Request) {
@@ -16,7 +16,13 @@ export default {
       const archive = await loadArchive(getOwnerEmail());
       if (!archive.initialized) return json(request, archive);
 
-      const recipes = archive.recipes.filter((recipe) => recipe.published);
+      const viewCounts = await loadRecipeViews();
+      const recipes = archive.recipes
+        .filter((recipe) => recipe.published)
+        .map((recipe) => ({
+          ...recipe,
+          views: viewCounts.get(recipe.id) || 0,
+        }));
       const publishedIds = new Set(recipes.map((recipe) => recipe.id));
       const collections = archive.collections
         .filter((collection) => collection.enabled)

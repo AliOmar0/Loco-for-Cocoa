@@ -1,8 +1,9 @@
 import {
-  BookOpen,
   Cookie,
+  CookingPot,
   FlaskConical,
   Heart,
+  Layers3,
   Menu,
   Search,
   Sparkles,
@@ -51,6 +52,8 @@ export function SiteHeader({
 
         <nav className="header-nav" aria-label="Primary navigation">
           <a href="#recipes">Recipes</a>
+          <a href="#collections">Collections</a>
+          <a href="#pantry">Pantry</a>
           <a href="#flavor-lab">Flavor lab</a>
           <a href="#field-notes">Field notes</a>
         </nav>
@@ -93,6 +96,12 @@ export function SiteHeader({
           <a href="#recipes" onClick={() => setMenuOpen(false)}>
             Recipes
           </a>
+          <a href="#collections" onClick={() => setMenuOpen(false)}>
+            Collections
+          </a>
+          <a href="#pantry" onClick={() => setMenuOpen(false)}>
+            Pantry matcher
+          </a>
           <a href="#flavor-lab" onClick={() => setMenuOpen(false)}>
             Flavor lab
           </a>
@@ -108,13 +117,17 @@ export function SiteHeader({
           <Cookie size={17} />
           <span>Recipes</span>
         </a>
+        <a href="#collections">
+          <Layers3 size={17} />
+          <span>Collections</span>
+        </a>
+        <a href="#pantry">
+          <CookingPot size={17} />
+          <span>Pantry</span>
+        </a>
         <a href="#flavor-lab">
           <FlaskConical size={17} />
-          <span>Flavor lab</span>
-        </a>
-        <a href="#field-notes">
-          <BookOpen size={17} />
-          <span>Field notes</span>
+          <span>Flavor</span>
         </a>
       </nav>
     </>

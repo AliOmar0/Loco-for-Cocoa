@@ -1,13 +1,13 @@
-import { requireOwner } from "../../server/auth";
-import { saveArchive } from "../../server/database";
+import { requireOwner } from "../../server/auth.js";
+import { saveArchive } from "../../server/database.js";
 import {
   json,
   methodNotAllowed,
   preflight,
   publicError,
-} from "../../server/cors";
-import { archiveSchema } from "../../server/validation";
-import type { Recipe, RecipeCollection } from "../../src/types";
+} from "../../server/cors.js";
+import { archiveSchema } from "../../server/validation.js";
+import type { Recipe, RecipeCollection } from "../../src/types.js";
 
 export default {
   async fetch(request: Request) {

@@ -2,13 +2,13 @@ import { ArrowUpRight, Camera, Check, Star } from "lucide-react";
 import { motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import { CommandPalette } from "../components/CommandPalette";
 import { CuratedShelves } from "../components/CuratedShelves";
 import { FlavorLab } from "../components/FlavorLab";
 import { FieldNotes } from "../components/FieldNotes";
 import { Hero } from "../components/Hero";
 import { PantryMatcher } from "../components/PantryMatcher";
-import { RecipeDetail } from "../components/RecipeDetail";
 import { RecipeExplorer } from "../components/RecipeExplorer";
 import { RecipeHistoryRails } from "../components/RecipeHistoryRails";
 import { SiteHeader } from "../components/SiteHeader";
@@ -23,8 +23,7 @@ export function HomePage() {
   const toggleFavorite = useRecipeStore((state) => state.toggleFavorite);
   const recentlyViewed = useExperienceStore((state) => state.recentlyViewed);
   const bakeSessions = useExperienceStore((state) => state.bakeSessions);
-  const recordView = useExperienceStore((state) => state.recordView);
-  const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
+  const navigate = useNavigate();
   const [searchOpen, setSearchOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
   const [subscribed, setSubscribed] = useState(false);
@@ -38,7 +37,6 @@ export function HomePage() {
   );
 
   const openRecipe = useCallback((recipe: Recipe) => {
-    recordView(recipe.id);
     const transitionDocument = document as Document & {
       startViewTransition?: (callback: () => void) => {
         finished: Promise<void>;
@@ -47,29 +45,20 @@ export function HomePage() {
 
     flushSync(() => setTransitioningRecipeId(recipe.id));
     if (!transitionDocument.startViewTransition) {
-      setSelectedRecipe(recipe);
-      window.setTimeout(() => setTransitioningRecipeId(null), 450);
+      navigate(`/recipes/${encodeURIComponent(recipe.id)}`);
       return;
     }
 
     const transition = transitionDocument.startViewTransition(() => {
-      flushSync(() => setSelectedRecipe(recipe));
+      flushSync(() => navigate(`/recipes/${encodeURIComponent(recipe.id)}`));
     });
     transition.finished.finally(() => setTransitioningRecipeId(null));
-  }, [recordView]);
-
-  const closeRecipe = useCallback(() => {
-    setSelectedRecipe(null);
-    setTransitioningRecipeId(null);
-  }, []);
+  }, [navigate]);
 
   const roulette = useCallback(() => {
-    const candidates = published.filter(
-      (recipe) => recipe.id !== selectedRecipe?.id,
-    );
-    const recipe = candidates[Math.floor(Math.random() * candidates.length)];
+    const recipe = published[Math.floor(Math.random() * published.length)];
     if (recipe) openRecipe(recipe);
-  }, [openRecipe, published, selectedRecipe?.id]);
+  }, [openRecipe, published]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -98,7 +87,6 @@ export function HomePage() {
           onRoulette={roulette}
           onOpenRecipe={openRecipe}
           transitioningRecipeId={transitioningRecipeId}
-          selectedRecipeId={selectedRecipe?.id}
         />
 
         <div className="kinetic-strip" aria-hidden="true">
@@ -131,7 +119,6 @@ export function HomePage() {
           onOpenRecipe={openRecipe}
           onToggleFavorite={toggleFavorite}
           transitioningRecipeId={transitioningRecipeId}
-          selectedRecipeId={selectedRecipe?.id}
         />
 
         <RecipeHistoryRails
@@ -205,6 +192,8 @@ export function HomePage() {
           <p>Sweet things, deeply considered.</p>
           <nav>
             <a href="#recipes">Recipes</a>
+            <a href="#collections">Collections</a>
+            <a href="#pantry">Pantry matcher</a>
             <a href="#flavor-lab">Flavor lab</a>
             <a href="#field-notes">Field notes</a>
           </nav>
@@ -217,19 +206,6 @@ export function HomePage() {
         </div>
       </footer>
 
-      <RecipeDetail
-        recipe={selectedRecipe}
-        favorite={selectedRecipe ? favorites.includes(selectedRecipe.id) : false}
-        onClose={closeRecipe}
-        onToggleFavorite={() =>
-          selectedRecipe && toggleFavorite(selectedRecipe.id)
-        }
-        sharedName={
-          selectedRecipe && transitioningRecipeId === selectedRecipe.id
-            ? `recipe-image-${selectedRecipe.id}`
-            : undefined
-        }
-      />
       <CommandPalette
         open={searchOpen}
         recipes={recipes}

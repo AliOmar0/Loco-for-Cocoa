@@ -197,6 +197,7 @@ await capture("react-home-desktop.png");
 
 await evaluate(`document.querySelector(".card-hit-area").click()`);
 await waitFor(`Boolean(document.querySelector(".recipe-detail"))`);
+await waitFor(`location.pathname.startsWith("/recipes/")`);
 const sharedTransition = await evaluate(
   `getComputedStyle(document.querySelector(".detail-hero img")).viewTransitionName`,
 );
@@ -217,6 +218,8 @@ await evaluate(`document.querySelector(".step-check").click()`);
 await waitFor(`document.querySelector(".method-list li").classList.contains("is-complete")`);
 await evaluate(`document.querySelector(".ingredient-list button").click()`);
 await waitFor(`document.querySelector(".ingredient-list li").classList.contains("is-checked")`);
+await evaluate(`document.querySelector(".ingredient-heading button").click()`);
+await waitFor(`Boolean(document.querySelector(".recipe-extras-panel"))`);
 const advancedRecipeTools = await evaluate(`({
   substitutions: document.querySelectorAll(".substitution-roulette").length,
   unitConverters: document.querySelectorAll(".unit-chaos-button").length,
@@ -235,7 +238,7 @@ if (
 }
 await evaluate(`document.querySelector(".substitution-roulette").click()`);
 await waitFor(`Boolean(document.querySelector(".substitution-result"))`);
-await evaluate(`document.querySelector(".detail-rail button:last-child").click()`);
+await evaluate(`document.querySelector(".detail-rail button").click()`);
 await waitFor(`!document.querySelector(".recipe-detail")`);
 
 await evaluate(`document.querySelector(".search-control").click()`);
@@ -339,7 +342,7 @@ const mobileSummary = await evaluate(`({
   footerColumns: getComputedStyle(document.querySelector(".footer-wordmark")).gridTemplateColumns
 })`);
 if (mobileSummary.overflow) throw new Error("Mobile page has horizontal overflow.");
-if (mobileSummary.dockLinks !== 3 || !mobileSummary.dockVisible) {
+if (mobileSummary.dockLinks !== 4 || !mobileSummary.dockVisible) {
   throw new Error("The mobile section dock is not available.");
 }
 if (mobileSummary.canvas) {
@@ -386,6 +389,7 @@ await capture("react-archive-mobile-compact.png");
 
 await evaluate(`document.querySelector(".card-hit-area").click()`);
 await waitFor(`Boolean(document.querySelector(".recipe-detail"))`);
+await waitFor(`location.pathname.startsWith("/recipes/")`);
 const bakeBar = await evaluate(
   `getComputedStyle(document.querySelector(".bake-mode-bar")).display`,
 );
@@ -398,7 +402,7 @@ await evaluate(`document.querySelector(".bake-mode-bar button[aria-label='Next s
 await waitFor(
   `document.querySelector(".method-list li[data-method-step='1']").classList.contains("is-active-step")`,
 );
-await evaluate(`document.querySelector(".detail-rail button:last-child").click()`);
+await evaluate(`document.querySelector(".detail-rail button").click()`);
 await waitFor(`!document.querySelector(".recipe-detail")`);
 
 await send("Emulation.setDeviceMetricsOverride", {

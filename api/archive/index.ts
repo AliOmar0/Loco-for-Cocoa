@@ -1,11 +1,11 @@
-import { requireOwner } from "../../server/auth";
-import { loadArchive } from "../../server/database";
+import { requireOwner } from "../../server/auth.js";
+import { loadArchive } from "../../server/database.js";
 import {
   json,
   methodNotAllowed,
   preflight,
   publicError,
-} from "../../server/cors";
+} from "../../server/cors.js";
 
 export default {
   async fetch(request: Request) {
