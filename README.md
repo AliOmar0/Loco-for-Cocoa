@@ -111,8 +111,11 @@ After the first deployment:
 3. Generate an owner password hash locally:
 
    ```powershell
-   npm run auth:hash -- "a-long-password-you-will-remember"
+   npm run auth:hash
    ```
+
+   The command asks for the password twice without displaying or storing it in
+   shell history.
 
 4. Generate a JWT signing secret locally:
 
