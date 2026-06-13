@@ -75,10 +75,70 @@ The studio is at
 [http://127.0.0.1:5173/studio](http://127.0.0.1:5173/studio). Until a backend
 is configured, use **Open local preview**. Preview data remains in that browser.
 
-## Vercel backend contract
+## Vercel backend
 
-Keep GitHub Pages as the frontend and set this environment variable during the
-frontend build:
+This repository now contains both pieces:
+
+- Vite builds the frontend preview on Vercel.
+- TypeScript files in `api/` deploy as Vercel Functions.
+- GitHub Pages remains the public frontend.
+- Neon Postgres stores the recipe archive and up to 30 cloud revisions.
+- Vercel Blob receives recipe images directly from the browser.
+
+`vercel.json` declares the Vite framework, build command, output directory, and
+Function duration. On Vercel's **New Project** screen use:
+
+```text
+Application Preset: Vite
+Root Directory: ./
+Build Command: leave inherited
+Output Directory: leave inherited
+Install Command: leave inherited
+Environment Variables: leave empty for the first deployment
+```
+
+The values are inherited from `vercel.json`, so the disabled fields shown by
+Vercel are expected. Click **Deploy**.
+
+### Finish the Vercel project
+
+After the first deployment:
+
+1. Open the Vercel project and add a Postgres integration from **Storage** or
+   **Marketplace**. Neon is recommended. It supplies `DATABASE_URL`.
+2. Add a Vercel Blob store to the project. It supplies
+   `BLOB_READ_WRITE_TOKEN`.
+3. Generate an owner password hash locally:
+
+   ```powershell
+   npm run auth:hash -- "a-long-password-you-will-remember"
+   ```
+
+4. Generate a JWT signing secret locally:
+
+   ```powershell
+   npm run auth:secret
+   ```
+
+5. In **Project Settings → Environment Variables**, add:
+
+   ```env
+   OWNER_EMAIL=your-owner-email
+   OWNER_NAME=Ali
+   OWNER_PASSWORD_HASH=the-output-from-auth-hash
+   JWT_SECRET=the-output-from-auth-secret
+   ALLOWED_ORIGINS=https://aliomar0.github.io,http://127.0.0.1:5173
+   ```
+
+6. Redeploy the Vercel project so all variables are available to the Functions.
+7. Visit `https://your-project.vercel.app/api/health`. Every service should be
+   `true`.
+8. Sign into `/studio` on the Vercel deployment. The first archive request
+   creates the database tables automatically.
+
+The Vercel-hosted frontend automatically connects to its same-origin API. Keep
+GitHub Pages as the public frontend by setting this variable during the Pages
+build:
 
 ```env
 VITE_API_URL=https://your-vercel-project.vercel.app
@@ -94,27 +154,35 @@ to the Vite build.
 Never put database credentials, Blob tokens, password hashes, or signing secrets
 in a `VITE_*` variable.
 
-The frontend expects these authenticated endpoints:
+The frontend uses these authenticated endpoints:
 
 ```text
 POST /api/auth/login
   body: { email, password }
   returns: { token, user: { id, email, name? } }
 
-POST /api/uploads
-  multipart field: image
+GET /api/archive
   header: Authorization: Bearer <token>
-  returns: { url }
+  returns: { recipes, collections, version, updatedAt, initialized }
+
+GET /api/public/archive
+  public, read-only
+  returns published recipes and enabled collections only
+
+POST /api/uploads
+  Vercel Blob client-upload token exchange
+  header: Authorization: Bearer <token> during token generation
 
 POST /api/archive/sync
   body: { recipes, collections }
   header: Authorization: Bearer <token>
-  returns: { recipes, collections }
+  returns: { recipes, collections, version, updatedAt, initialized }
 ```
 
-The Vercel API should allow CORS only from the GitHub Pages production origin
-and local development origin. Authentication secrets and database credentials
-must stay on Vercel; never place them in `VITE_*` variables.
+The API already handles CORS for the GitHub Pages production origin, local
+development, and the active Vercel deployment. Authentication secrets and
+database credentials must stay on Vercel; never place them in `VITE_*`
+variables.
 
 Recommended private Vercel variables:
 
@@ -124,6 +192,7 @@ BLOB_READ_WRITE_TOKEN=provided-by-vercel-blob
 JWT_SECRET=a-long-random-secret
 ALLOWED_ORIGINS=https://aliomar0.github.io,http://127.0.0.1:5173
 OWNER_EMAIL=your-owner-email
+OWNER_NAME=Ali
 OWNER_PASSWORD_HASH=an-argon2id-password-hash
 ```
 

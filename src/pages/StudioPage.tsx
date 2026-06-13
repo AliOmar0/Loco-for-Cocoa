@@ -35,6 +35,7 @@ import { z } from "zod";
 import { dessertHeroImage } from "../lib/assets";
 import {
   backendConfigured,
+  getCloudArchive,
   loginOwner,
   syncArchive,
   uploadRecipeImage,
@@ -1358,7 +1359,40 @@ export function StudioPage() {
   const [creating, setCreating] = useState(false);
   const [query, setQuery] = useState("");
   const [studioView, setStudioView] = useState<StudioView>("recipes");
+  const [cloudState, setCloudState] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (
+      !session ||
+      !backendConfigured ||
+      session.token === "local-preview"
+    ) {
+      return;
+    }
+    let cancelled = false;
+    setCloudState("loading");
+    getCloudArchive(session.token)
+      .then((archive) => {
+        if (cancelled) return;
+        if (archive.initialized) {
+          replaceRecipes(archive.recipes);
+          replaceCollections(archive.collections);
+          setSelectedId(archive.recipes[0]?.id || null);
+        }
+        setCloudState("ready");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Unable to load cloud archive:", error);
+        setCloudState("error");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [replaceCollections, replaceRecipes, session]);
 
   const selected = recipes.find((recipe) => recipe.id === selectedId);
   const filtered = recipes.filter((recipe) =>
@@ -1461,8 +1495,10 @@ export function StudioPage() {
         <div className="sidebar-bottom">
           {backendConfigured && (
             <button
+              disabled={cloudState === "loading"}
               onClick={async () => {
                 try {
+                  setCloudState("loading");
                   const result = await syncArchive(
                     recipes,
                     collections,
@@ -1470,8 +1506,10 @@ export function StudioPage() {
                   );
                   replaceRecipes(result.recipes);
                   replaceCollections(result.collections);
+                  setCloudState("ready");
                   window.alert("Studio and cloud archive are in sync.");
                 } catch (error) {
+                  setCloudState("error");
                   window.alert(
                     error instanceof Error ? error.message : "Cloud sync failed.",
                   );
@@ -1479,7 +1517,11 @@ export function StudioPage() {
               }}
             >
               <Cloud size={16} />
-              Sync cloud archive
+              {cloudState === "loading"
+                ? "Syncing cloud archive..."
+                : cloudState === "error"
+                  ? "Retry cloud sync"
+                  : "Sync cloud archive"}
             </button>
           )}
           <button onClick={exportRecipes}>

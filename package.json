@@ -6,11 +6,14 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "build:pages": "tsc -b && vite build --base=/Loco-for-Cocoa/",
+    "build": "npm run typecheck:server && tsc -b && vite build",
+    "build:pages": "npm run typecheck:server && tsc -b && vite build --base=/Loco-for-Cocoa/",
     "preview": "vite preview",
     "lint": "eslint .",
-    "test:smoke": "node tests/react-smoke.mjs"
+    "test:smoke": "node tests/react-smoke.mjs",
+    "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
+    "auth:hash": "node scripts/hash-owner-password.mjs",
+    "auth:secret": "node scripts/generate-jwt-secret.mjs"
   },
   "repository": {
     "type": "git",
@@ -30,7 +33,11 @@
   "homepage": "https://aliomar0.github.io/Loco-for-Cocoa/",
   "dependencies": {
     "@hookform/resolvers": "^5.4.0",
+    "@neondatabase/serverless": "^1.1.0",
+    "@node-rs/argon2": "^2.0.2",
+    "@vercel/blob": "^2.4.0",
     "canvas-confetti": "^1.9.4",
+    "jose": "^6.2.3",
     "lucide-react": "^1.17.0",
     "motion": "^12.40.0",
     "react": "^19.2.7",
@@ -45,6 +52,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/canvas-confetti": "^1.9.0",
+    "@types/node": "^25.9.3",
     "@types/react": "^19.2.17",
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.184.1",

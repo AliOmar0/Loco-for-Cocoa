@@ -1,12 +1,27 @@
 import type { Recipe, RecipeCollection } from "../types";
 
-const apiUrl = (import.meta.env.VITE_API_URL || "").replace(/\/+$/, "");
+const deployedOnVercel =
+  typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app")
+    ? window.location.origin
+    : "";
+const apiUrl = (import.meta.env.VITE_API_URL || deployedOnVercel).replace(
+  /\/+$/,
+  "",
+);
 
 export const backendConfigured = Boolean(apiUrl);
 
 export type AuthSession = {
   token: string;
   user: { id: string; email: string; name?: string };
+};
+
+export type CloudArchive = {
+  recipes: Recipe[];
+  collections: RecipeCollection[];
+  version: number;
+  updatedAt: string | null;
+  initialized: boolean;
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -19,8 +34,21 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     },
   });
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `API request failed with ${response.status}.`);
+    const body = await response.text();
+    try {
+      const parsed = JSON.parse(body) as { error?: string };
+      throw new Error(
+        parsed.error || `API request failed with ${response.status}.`,
+      );
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        throw new Error(
+          body || `API request failed with ${response.status}.`,
+          { cause: error },
+        );
+      }
+      throw error;
+    }
   }
   return response.json() as Promise<T>;
 }
@@ -41,15 +69,26 @@ export async function uploadRecipeImage(file: File, token: string) {
       reader.readAsDataURL(file);
     });
   }
-  const form = new FormData();
-  form.append("image", file);
-  const response = await fetch(`${apiUrl}/api/uploads`, {
-    method: "POST",
+  const { upload } = await import("@vercel/blob/client");
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]+/g, "-");
+  const blob = await upload(`recipes/${Date.now()}-${safeName}`, file, {
+    access: "public",
+    handleUploadUrl: `${apiUrl}/api/uploads`,
     headers: { Authorization: `Bearer ${token}` },
-    body: form,
+    contentType: file.type,
+    multipart: file.size > 4 * 1024 * 1024,
   });
-  if (!response.ok) throw new Error(await response.text());
-  return (await response.json() as { url: string }).url;
+  return blob.url;
+}
+
+export function getCloudArchive(token: string) {
+  return request<CloudArchive>("/api/archive", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getPublicArchive() {
+  return request<CloudArchive>("/api/public/archive");
 }
 
 export function syncArchive(
@@ -57,12 +96,9 @@ export function syncArchive(
   collections: RecipeCollection[],
   token: string,
 ) {
-  return request<{ recipes: Recipe[]; collections: RecipeCollection[] }>(
-    "/api/archive/sync",
-    {
+  return request<CloudArchive>("/api/archive/sync", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ recipes, collections }),
-    },
-  );
+  });
 }

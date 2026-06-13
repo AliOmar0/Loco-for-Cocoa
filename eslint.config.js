@@ -39,4 +39,17 @@ export default tseslint.config(
       },
     },
   },
+  {
+    files: ["api/**/*.ts", "server/**/*.ts", "scripts/**/*.{js,mjs,ts}"],
+    languageOptions: {
+      ecmaVersion: 2023,
+      globals: {
+        ...globals.node,
+        fetch: "readonly",
+        Headers: "readonly",
+        Request: "readonly",
+        Response: "readonly",
+      },
+    },
+  },
 );
