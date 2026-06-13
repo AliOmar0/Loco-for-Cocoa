@@ -80,6 +80,19 @@ export function Hero({
     if (activeIndex >= slides.length) setActiveIndex(0);
   }, [activeIndex, slides.length]);
 
+  useEffect(() => {
+    if (!activeRecipe) return;
+    window.dispatchEvent(
+      new CustomEvent("loco:shader-palette", {
+        detail: {
+          primary: activeRecipe.accent[0],
+          secondary: activeRecipe.accent[1],
+          texture: activeRecipe.mood === "dramatic" ? 0.7 : 0.28,
+        },
+      }),
+    );
+  }, [activeRecipe]);
+
   const moveSlide = (direction: number) => {
     setActiveIndex((current) => (current + direction + slides.length) % slides.length);
   };

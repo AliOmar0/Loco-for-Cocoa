@@ -1,46 +1,20 @@
 import { ArrowUpRight, Clock3, Layers3 } from "lucide-react";
-import type { Recipe } from "../types";
+import type { Recipe, RecipeCollection } from "../types";
 import { RecipeImage } from "./RecipeImage";
 
 type CuratedShelvesProps = {
   recipes: Recipe[];
+  collections: RecipeCollection[];
   onOpenRecipe: (recipe: Recipe) => void;
 };
 
-const collections = [
-  {
-    id: "one-bowl",
-    label: "One bowl",
-    note: "Low cleanup, high reward",
-    match: (recipe: Recipe) =>
-      /one-bowl|one bowl/i.test(`${recipe.title} ${recipe.description}`),
-  },
-  {
-    id: "no-oven",
-    label: "No oven",
-    note: "Cool kitchen behavior",
-    match: (recipe: Recipe) => recipe.category === "no-bake",
-  },
-  {
-    id: "fifteen",
-    label: "15 minutes",
-    note: "The craving is urgent",
-    match: (recipe: Recipe) => recipe.time <= 15,
-  },
-  {
-    id: "weekend",
-    label: "Weekend project",
-    note: "Make an afternoon of it",
-    match: (recipe: Recipe) =>
-      recipe.difficulty === "Project" || recipe.time >= 60,
-  },
-] as const;
-
 export function CuratedShelves({
   recipes,
+  collections,
   onOpenRecipe,
 }: CuratedShelvesProps) {
   const published = recipes.filter((recipe) => recipe.published);
+  const recipeMap = new Map(published.map((recipe) => [recipe.id, recipe]));
 
   return (
     <section className="curated-shelves section-shell" aria-labelledby="collections-title">
@@ -58,8 +32,10 @@ export function CuratedShelves({
       </div>
 
       <div className="collection-grid">
-        {collections.map((collection) => {
-          const matches = published.filter(collection.match);
+        {collections.filter((collection) => collection.enabled).map((collection) => {
+          const matches = collection.recipeIds
+            .map((id) => recipeMap.get(id))
+            .filter((recipe): recipe is Recipe => Boolean(recipe));
           const recipe = matches[0] || published[0];
           if (!recipe) return null;
           return (
@@ -67,6 +43,7 @@ export function CuratedShelves({
               key={collection.id}
               className={`collection-card collection-${collection.id}`}
               onClick={() => onOpenRecipe(recipe)}
+              style={{ "--collection-accent": collection.accent } as React.CSSProperties}
             >
               <RecipeImage recipe={recipe} alt="" loading="lazy" sizes="(max-width: 620px) 78vw, 25vw" />
               <span className="collection-shade" />

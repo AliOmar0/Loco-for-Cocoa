@@ -16,6 +16,9 @@ const fragmentShader = `
   uniform float uTime;
   uniform vec2 uMouse;
   uniform float uMotion;
+  uniform vec3 uColorA;
+  uniform vec3 uColorB;
+  uniform float uTexture;
   varying vec2 vUv;
 
   float hash(vec2 p) {
@@ -55,14 +58,13 @@ const fragmentShader = `
     float mouseField = exp(-5.5 * length(centered - mouse));
 
     float t = uTime * 0.085 * uMotion;
-    float flowA = fbm(centered * 2.25 + vec2(t, -t * 0.72));
-    float flowB = fbm(centered * 3.15 - vec2(t * 0.55, t) + flowA);
+    float textureScale = mix(0.82, 1.45, uTexture);
+    float flowA = fbm(centered * 2.25 * textureScale + vec2(t, -t * 0.72));
+    float flowB = fbm(centered * 3.15 * textureScale - vec2(t * 0.55, t) + flowA);
     float ribbons = sin((centered.x + flowB * 0.58 + mouseField * 0.18) * 8.0 - t * 4.0);
 
     vec3 cream = vec3(0.996, 0.952, 0.872);
     vec3 cocoa = vec3(0.145, 0.052, 0.038);
-    vec3 cherry = vec3(0.805, 0.070, 0.180);
-    vec3 blush = vec3(0.946, 0.510, 0.600);
     vec3 butter = vec3(0.973, 0.745, 0.280);
 
     float chocolateMask = smoothstep(0.34, 0.77, flowB + ribbons * 0.12);
@@ -70,16 +72,34 @@ const fragmentShader = `
     float goldLine = smoothstep(0.965, 1.0, sin((flowB + uv.y) * 18.0));
 
     vec3 color = mix(cream, cocoa, chocolateMask * 0.88);
-    color = mix(color, mix(cherry, blush, flowA), cherryMask * 0.35);
+    color = mix(color, mix(uColorA, uColorB, flowA), cherryMask * 0.42);
     color = mix(color, butter, goldLine * 0.25);
 
     float vignette = smoothstep(0.92, 0.15, length(centered));
     color *= 0.78 + vignette * 0.28;
-    color += (hash(gl_FragCoord.xy + uTime) - 0.5) * 0.025;
+    color += (hash(gl_FragCoord.xy + uTime) - 0.5) * mix(0.012, 0.055, uTexture);
 
     gl_FragColor = vec4(color, 1.0);
   }
 `;
+
+function hexToRgb(hex: string) {
+  const value = hex.replace("#", "");
+  const normalized =
+    value.length === 3
+      ? value
+          .split("")
+          .map((part) => `${part}${part}`)
+          .join("")
+      : value;
+  const number = Number.parseInt(normalized, 16);
+  if (Number.isNaN(number)) return [0.805, 0.07, 0.18] as const;
+  return [
+    ((number >> 16) & 255) / 255,
+    ((number >> 8) & 255) / 255,
+    (number & 255) / 255,
+  ] as const;
+}
 
 function compileShader(
   gl: WebGLRenderingContext,
@@ -167,11 +187,24 @@ export function CocoaShader() {
     const timeUniform = gl.getUniformLocation(program, "uTime");
     const mouseUniform = gl.getUniformLocation(program, "uMouse");
     const motionUniform = gl.getUniformLocation(program, "uMotion");
+    const colorAUniform = gl.getUniformLocation(program, "uColorA");
+    const colorBUniform = gl.getUniformLocation(program, "uColorB");
+    const textureUniform = gl.getUniformLocation(program, "uTexture");
     const reducedMotion = window.matchMedia(
       "(prefers-reduced-motion: reduce)",
     ).matches;
     const targetMouse = { x: 0.67, y: 0.38 };
     const currentMouse = { ...targetMouse };
+    const targetPalette = {
+      a: [...hexToRgb("#cd122e")],
+      b: [...hexToRgb("#f18299")],
+      texture: 0.28,
+    };
+    const currentPalette = {
+      a: [...targetPalette.a],
+      b: [...targetPalette.b],
+      texture: targetPalette.texture,
+    };
     const startedAt = performance.now();
     let frame = 0;
     let lastFrameAt = 0;
@@ -194,6 +227,21 @@ export function CocoaShader() {
       targetMouse.y = 1 - event.clientY / window.innerHeight;
     };
 
+    const onPalette = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{
+          primary?: string;
+          secondary?: string;
+          texture?: number;
+        }>
+      ).detail;
+      if (detail.primary) targetPalette.a = [...hexToRgb(detail.primary)];
+      if (detail.secondary) targetPalette.b = [...hexToRgb(detail.secondary)];
+      if (typeof detail.texture === "number") {
+        targetPalette.texture = Math.min(1, Math.max(0, detail.texture));
+      }
+    };
+
     const render = (now: number) => {
       frame = window.requestAnimationFrame(render);
       if (!visible || document.hidden) return;
@@ -203,11 +251,32 @@ export function CocoaShader() {
       resize();
       currentMouse.x += (targetMouse.x - currentMouse.x) * 0.045;
       currentMouse.y += (targetMouse.y - currentMouse.y) * 0.045;
+      for (let index = 0; index < 3; index += 1) {
+        currentPalette.a[index] +=
+          (targetPalette.a[index] - currentPalette.a[index]) * 0.025;
+        currentPalette.b[index] +=
+          (targetPalette.b[index] - currentPalette.b[index]) * 0.025;
+      }
+      currentPalette.texture +=
+        (targetPalette.texture - currentPalette.texture) * 0.025;
 
       gl.useProgram(program);
       gl.uniform1f(timeUniform, (now - startedAt) / 1000);
       gl.uniform2f(mouseUniform, currentMouse.x, currentMouse.y);
       gl.uniform1f(motionUniform, reducedMotion ? 0.05 : 1);
+      gl.uniform3f(
+        colorAUniform,
+        currentPalette.a[0],
+        currentPalette.a[1],
+        currentPalette.a[2],
+      );
+      gl.uniform3f(
+        colorBUniform,
+        currentPalette.b[0],
+        currentPalette.b[1],
+        currentPalette.b[2],
+      );
+      gl.uniform1f(textureUniform, currentPalette.texture);
       gl.drawArrays(gl.TRIANGLES, 0, 6);
     };
 
@@ -221,12 +290,14 @@ export function CocoaShader() {
     );
     visibilityObserver.observe(canvas);
     window.addEventListener("pointermove", onPointerMove, { passive: true });
+    window.addEventListener("loco:shader-palette", onPalette);
     resize();
     frame = window.requestAnimationFrame(render);
 
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("loco:shader-palette", onPalette);
       resizeObserver.disconnect();
       visibilityObserver.disconnect();
       gl.deleteBuffer(buffer);

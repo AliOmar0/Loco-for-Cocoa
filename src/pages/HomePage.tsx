@@ -10,14 +10,20 @@ import { Hero } from "../components/Hero";
 import { PantryMatcher } from "../components/PantryMatcher";
 import { RecipeDetail } from "../components/RecipeDetail";
 import { RecipeExplorer } from "../components/RecipeExplorer";
+import { RecipeHistoryRails } from "../components/RecipeHistoryRails";
 import { SiteHeader } from "../components/SiteHeader";
+import { useExperienceStore } from "../store/useExperienceStore";
 import { useRecipeStore } from "../store/useRecipeStore";
 import type { Recipe } from "../types";
 
 export function HomePage() {
   const recipes = useRecipeStore((state) => state.recipes);
+  const collections = useRecipeStore((state) => state.collections);
   const favorites = useRecipeStore((state) => state.favorites);
   const toggleFavorite = useRecipeStore((state) => state.toggleFavorite);
+  const recentlyViewed = useExperienceStore((state) => state.recentlyViewed);
+  const bakeSessions = useExperienceStore((state) => state.bakeSessions);
+  const recordView = useExperienceStore((state) => state.recordView);
   const [selectedRecipe, setSelectedRecipe] = useState<Recipe | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [favoritesOnly, setFavoritesOnly] = useState(false);
@@ -32,6 +38,7 @@ export function HomePage() {
   );
 
   const openRecipe = useCallback((recipe: Recipe) => {
+    recordView(recipe.id);
     const transitionDocument = document as Document & {
       startViewTransition?: (callback: () => void) => {
         finished: Promise<void>;
@@ -49,7 +56,7 @@ export function HomePage() {
       flushSync(() => setSelectedRecipe(recipe));
     });
     transition.finished.finally(() => setTransitioningRecipeId(null));
-  }, []);
+  }, [recordView]);
 
   const closeRecipe = useCallback(() => {
     setSelectedRecipe(null);
@@ -127,7 +134,18 @@ export function HomePage() {
           selectedRecipeId={selectedRecipe?.id}
         />
 
-        <CuratedShelves recipes={recipes} onOpenRecipe={openRecipe} />
+        <RecipeHistoryRails
+          recipes={recipes}
+          recentlyViewed={recentlyViewed}
+          bakeSessions={bakeSessions}
+          onOpenRecipe={openRecipe}
+        />
+
+        <CuratedShelves
+          recipes={recipes}
+          collections={collections}
+          onOpenRecipe={openRecipe}
+        />
 
         <PantryMatcher recipes={recipes} onOpenRecipe={openRecipe} />
 

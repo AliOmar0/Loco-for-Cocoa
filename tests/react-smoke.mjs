@@ -217,6 +217,22 @@ await evaluate(`document.querySelector(".step-check").click()`);
 await waitFor(`document.querySelector(".method-list li").classList.contains("is-complete")`);
 await evaluate(`document.querySelector(".ingredient-list button").click()`);
 await waitFor(`document.querySelector(".ingredient-list li").classList.contains("is-checked")`);
+const advancedRecipeTools = await evaluate(`({
+  substitutions: document.querySelectorAll(".substitution-roulette").length,
+  portionToggle: Boolean(document.querySelector(".portion-personality")),
+  handsFree: document.querySelectorAll(".hands-free-controls button").length,
+  messMeter: document.querySelectorAll(".mess-meter i").length
+})`);
+if (
+  advancedRecipeTools.substitutions < 1 ||
+  !advancedRecipeTools.portionToggle ||
+  advancedRecipeTools.handsFree !== 2 ||
+  advancedRecipeTools.messMeter !== 5
+) {
+  throw new Error(`Advanced recipe tools did not initialize: ${JSON.stringify(advancedRecipeTools)}`);
+}
+await evaluate(`document.querySelector(".substitution-roulette").click()`);
+await waitFor(`Boolean(document.querySelector(".substitution-result"))`);
 await evaluate(`document.querySelector(".detail-rail button:last-child").click()`);
 await waitFor(`!document.querySelector(".recipe-detail")`);
 
@@ -415,14 +431,7 @@ await waitFor(
 );
 const studioLocked = await evaluate(`Boolean(document.querySelector(".studio-login"))`);
 if (studioLocked) {
-  await evaluate(`(() => {
-    const input = document.querySelector('.studio-login input');
-    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
-    setter.call(input, '0420');
-    input.dispatchEvent(new Event('input', { bubbles: true }));
-    document.querySelector('.studio-login form').requestSubmit();
-    return true;
-  })()`);
+  await evaluate(`document.querySelector(".studio-login .studio-primary").click()`);
 }
 await waitFor(`Boolean(document.querySelector(".studio-page"))`);
 
@@ -449,9 +458,20 @@ if (studioSummary.sidebarPosition !== "fixed" || studioSummary.sidebarHeight < 9
 }
 
 await evaluate(`document.querySelectorAll(".studio-sidebar nav button")[1].click()`);
+await waitFor(`Boolean(document.querySelector(".collections-studio"))`);
+const collectionSummary = await evaluate(`({
+  shelves: document.querySelectorAll(".collection-index > div > button").length,
+  recipes: document.querySelectorAll(".collection-recipe-picker label").length,
+  save: Boolean(document.querySelector(".collection-editor .studio-primary"))
+})`);
+if (collectionSummary.shelves < 4 || collectionSummary.recipes < 6 || !collectionSummary.save) {
+  throw new Error(`Studio collections did not initialize: ${JSON.stringify(collectionSummary)}`);
+}
+await capture("react-studio-collections.png");
+await evaluate(`document.querySelectorAll(".studio-sidebar nav button")[2].click()`);
 await waitFor(`Boolean(document.querySelector(".performance-view"))`);
 await capture("react-studio-performance.png");
-await evaluate(`document.querySelectorAll(".studio-sidebar nav button")[2].click()`);
+await evaluate(`document.querySelectorAll(".studio-sidebar nav button")[3].click()`);
 await waitFor(`Boolean(document.querySelector(".community-view"))`);
 await capture("react-studio-community.png");
 await evaluate(`document.querySelectorAll(".studio-sidebar nav button")[0].click()`);

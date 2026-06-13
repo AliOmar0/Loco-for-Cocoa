@@ -6,21 +6,42 @@ import {
   ChefHat,
   Clock3,
   Copy,
+  Dices,
   Heart,
+  Mic,
   Minus,
   Plus,
   Play,
   Printer,
+  RotateCw,
+  Scale,
   Share2,
+  Sparkles,
   TimerReset,
+  Video,
   X,
   Zap,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { formatTime, moodLabels, scaleIngredient } from "../lib/recipe";
-import type { Recipe, RecipeStep } from "../types";
+import {
+  absurdUnit,
+  dietaryLabels,
+  filterSubstitutions,
+  messLabels,
+  pulseFeedback,
+  substitutionsFor,
+} from "../lib/recipeExtras";
+import { useExperienceStore } from "../store/useExperienceStore";
+import type {
+  BakeTimerState,
+  DietaryTag,
+  Recipe,
+  RecipeStep,
+  SubstitutionOption,
+} from "../types";
 import { RecipeImage } from "./RecipeImage";
 
 type RecipeDetailProps = {
@@ -31,19 +52,50 @@ type RecipeDetailProps = {
   sharedName?: string;
 };
 
-function StepTimer({ step }: { step: RecipeStep }) {
+function StepTimer({
+  step,
+  timer,
+  onChange,
+}: {
+  step: RecipeStep;
+  timer?: BakeTimerState;
+  onChange: (timer: BakeTimerState) => void;
+}) {
   const total = (step.duration || 0) * 60;
-  const [remaining, setRemaining] = useState(total);
-  const [running, setRunning] = useState(false);
+  const effectiveRemaining = timer?.running
+    ? Math.max(
+        0,
+        (timer.remaining || total) -
+          Math.floor((Date.now() - timer.updatedAt) / 1000),
+      )
+    : timer?.remaining ?? total;
+  const [remaining, setRemaining] = useState(effectiveRemaining);
+  const running = Boolean(timer?.running && effectiveRemaining > 0);
+  const onChangeRef = useRef(onChange);
 
   useEffect(() => {
-    if (!running || remaining <= 0) return;
-    const timer = window.setInterval(
-      () => setRemaining((value) => Math.max(0, value - 1)),
-      1000,
-    );
-    return () => window.clearInterval(timer);
-  }, [remaining, running]);
+    onChangeRef.current = onChange;
+  }, [onChange]);
+
+  useEffect(() => {
+    setRemaining(effectiveRemaining);
+  }, [effectiveRemaining]);
+
+  useEffect(() => {
+    if (!running) return;
+    const interval = window.setInterval(() => {
+      setRemaining((value) => {
+        const next = Math.max(0, value - 1);
+        onChangeRef.current({
+          remaining: next,
+          running: next > 0,
+          updatedAt: Date.now(),
+        });
+        return next;
+      });
+    }, 1000);
+    return () => window.clearInterval(interval);
+  }, [running]);
 
   if (!step.duration) return null;
 
@@ -51,8 +103,12 @@ function StepTimer({ step }: { step: RecipeStep }) {
     <button
       className={`step-timer ${running ? "is-running" : ""}`}
       onClick={() => {
-        if (remaining === 0) setRemaining(total);
-        setRunning((value) => !value);
+        const nextRemaining = remaining === 0 ? total : remaining;
+        onChange({
+          remaining: nextRemaining,
+          running: !running,
+          updatedAt: Date.now(),
+        });
       }}
     >
       <TimerReset size={14} />
@@ -61,6 +117,24 @@ function StepTimer({ step }: { step: RecipeStep }) {
   );
 }
 
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  start: () => void;
+  stop: () => void;
+  onresult: ((event: {
+    results: ArrayLike<{ 0: { transcript: string } }>;
+  }) => void) | null;
+  onend: (() => void) | null;
+};
+
+type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+type FaceDetectorInstance = {
+  detect: (video: HTMLVideoElement) => Promise<Array<{ boundingBox: DOMRect }>>;
+};
+
 export function RecipeDetail({
   recipe,
   favorite,
@@ -68,21 +142,56 @@ export function RecipeDetail({
   onToggleFavorite,
   sharedName,
 }: RecipeDetailProps) {
-  const [servings, setServings] = useState(recipe?.servings || 1);
-  const [completed, setCompleted] = useState<number[]>([]);
-  const [checkedIngredients, setCheckedIngredients] = useState<number[]>([]);
-  const [bakeMode, setBakeMode] = useState(false);
-  const [activeStep, setActiveStep] = useState(0);
+  const bakeSessions = useExperienceStore((state) => state.bakeSessions);
+  const updateBakeSession = useExperienceStore(
+    (state) => state.updateBakeSession,
+  );
+  const updateTimer = useExperienceStore((state) => state.updateTimer);
+  const clearBakeSession = useExperienceStore(
+    (state) => state.clearBakeSession,
+  );
+  const comfort = useExperienceStore((state) => state.comfort);
+  const session = recipe ? bakeSessions[recipe.id] : undefined;
+  const servings = session?.servings ?? recipe?.servings ?? 1;
+  const completed = session?.completed ?? [];
+  const checkedIngredients = session?.checkedIngredients ?? [];
+  const bakeMode = session?.bakeMode ?? false;
+  const activeStep = session?.activeStep ?? 0;
+  const realisticPortions = session?.realisticPortions ?? false;
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
+  const [dietaryFilters, setDietaryFilters] = useState<DietaryTag[]>([]);
+  const [chaoticUnits, setChaoticUnits] = useState(false);
+  const [substitution, setSubstitution] = useState<{
+    ingredient: string;
+    option: SubstitutionOption;
+  } | null>(null);
+  const [voiceActive, setVoiceActive] = useState(false);
+  const [gestureActive, setGestureActive] = useState(false);
+  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const gestureVideo = useRef<HTMLVideoElement>(null);
+  const gestureStream = useRef<MediaStream | null>(null);
+  const gestureFrame = useRef(0);
+  const lastFaceY = useRef<number | null>(null);
+  const activeStepRef = useRef(activeStep);
+
+  useEffect(() => {
+    activeStepRef.current = activeStep;
+  }, [activeStep]);
 
   useEffect(() => {
     if (!recipe) return;
-    setServings(recipe.servings);
-    setCompleted([]);
-    setCheckedIngredients([]);
-    setBakeMode(false);
-    setActiveStep(0);
-  }, [recipe]);
+    if (!bakeSessions[recipe.id]) {
+      updateBakeSession(recipe.id, {
+        servings: recipe.servings,
+        completed: [],
+        checkedIngredients: [],
+        activeStep: 0,
+        realisticPortions: false,
+        bakeMode: false,
+        timers: {},
+      });
+    }
+  }, [bakeSessions, recipe, updateBakeSession]);
 
   useEffect(() => {
     const closeOnEscape = (event: KeyboardEvent) => {
@@ -95,6 +204,9 @@ export function RecipeDetail({
   useEffect(
     () => () => {
       wakeLock?.release().catch(() => undefined);
+      recognitionRef.current?.stop();
+      window.cancelAnimationFrame(gestureFrame.current);
+      gestureStream.current?.getTracks().forEach((track) => track.stop());
     },
     [wakeLock],
   );
@@ -107,7 +219,7 @@ export function RecipeDetail({
   const setStep = (index: number) => {
     if (!recipe) return;
     const next = Math.max(0, Math.min(recipe.steps.length - 1, index));
-    setActiveStep(next);
+    updateBakeSession(recipe.id, { activeStep: next });
     window.setTimeout(() => {
       document
         .querySelector(`[data-method-step="${next}"]`)
@@ -116,8 +228,9 @@ export function RecipeDetail({
   };
 
   const toggleBakeMode = async () => {
+    if (!recipe) return;
     const next = !bakeMode;
-    setBakeMode(next);
+    updateBakeSession(recipe.id, { bakeMode: next });
     if (next && !wakeLock && "wakeLock" in navigator) {
       try {
         setWakeLock(await navigator.wakeLock.request("screen"));
@@ -129,6 +242,176 @@ export function RecipeDetail({
       await wakeLock.release().catch(() => undefined);
       setWakeLock(null);
     }
+  };
+
+  const toggleIngredient = (index: number) => {
+    if (!recipe) return;
+    const next = checkedIngredients.includes(index)
+      ? checkedIngredients.filter((value) => value !== index)
+      : [...checkedIngredients, index];
+    updateBakeSession(recipe.id, { checkedIngredients: next });
+    pulseFeedback(comfort.sounds);
+  };
+
+  const toggleStep = (index: number) => {
+    if (!recipe) return;
+    const next = completed.includes(index)
+      ? completed.filter((value) => value !== index)
+      : [...completed, index];
+    updateBakeSession(recipe.id, { completed: next });
+    pulseFeedback(comfort.sounds);
+  };
+
+  const spinSubstitution = (ingredient: string) => {
+    if (!recipe) return;
+    const available = filterSubstitutions(
+      substitutionsFor(recipe, ingredient),
+      dietaryFilters,
+    );
+    const options = available.length
+      ? available
+      : substitutionsFor(recipe, ingredient);
+    if (!options.length) {
+      setSubstitution({
+        ingredient,
+        option: {
+          label: "A tactical trip to the store",
+          amount: "one pair of shoes",
+          note: "The roulette found no responsible replacement for this one.",
+          dietary: [],
+          reliable: false,
+        },
+      });
+      return;
+    }
+    setSubstitution({
+      ingredient,
+      option: options[Math.floor(Math.random() * options.length)],
+    });
+  };
+
+  const runVoiceCommand = (command: string) => {
+    if (!recipe) return;
+    const normalized = command.toLowerCase();
+    if (normalized.includes("next step")) setStep(activeStep + 1);
+    else if (normalized.includes("previous step")) setStep(activeStep - 1);
+    else if (normalized.includes("check ingredient")) {
+      const next = recipe.ingredients.findIndex(
+        (_, index) => !checkedIngredients.includes(index),
+      );
+      if (next >= 0) toggleIngredient(next);
+    } else if (normalized.includes("complete step")) toggleStep(activeStep);
+    else if (normalized.includes("start timer")) {
+      const step = recipe.steps[activeStep];
+      if (step.duration) {
+        updateTimer(recipe.id, activeStep, {
+          remaining: step.duration * 60,
+          running: true,
+          updatedAt: Date.now(),
+        });
+      }
+    }
+  };
+
+  const toggleVoice = () => {
+    const speechWindow = window as Window & {
+      SpeechRecognition?: SpeechRecognitionConstructor;
+      webkitSpeechRecognition?: SpeechRecognitionConstructor;
+    };
+    if (voiceActive) {
+      recognitionRef.current?.stop();
+      setVoiceActive(false);
+      return;
+    }
+    const Recognition =
+      speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
+    if (!Recognition) return;
+    const recognition = new Recognition();
+    recognition.continuous = true;
+    recognition.interimResults = false;
+    recognition.lang = "en-US";
+    recognition.onresult = (event) => {
+      const latest = event.results[event.results.length - 1];
+      runVoiceCommand(latest[0].transcript);
+    };
+    recognition.onend = () => setVoiceActive(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setVoiceActive(true);
+  };
+
+  const stopGestureMode = () => {
+    window.cancelAnimationFrame(gestureFrame.current);
+    gestureStream.current?.getTracks().forEach((track) => track.stop());
+    gestureStream.current = null;
+    lastFaceY.current = null;
+    setGestureActive(false);
+  };
+
+  const toggleGestureMode = async () => {
+    if (gestureActive) {
+      stopGestureMode();
+      return;
+    }
+    const detectorWindow = window as Window & {
+      FaceDetector?: new (options?: {
+        fastMode?: boolean;
+        maxDetectedFaces?: number;
+      }) => FaceDetectorInstance;
+    };
+    if (!detectorWindow.FaceDetector || !navigator.mediaDevices?.getUserMedia) {
+      return;
+    }
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user", width: 320, height: 240 },
+      audio: false,
+    });
+    gestureStream.current = stream;
+    const video = gestureVideo.current;
+    if (!video) return;
+    video.srcObject = stream;
+    await video.play();
+    const detector = new detectorWindow.FaceDetector({
+      fastMode: true,
+      maxDetectedFaces: 1,
+    });
+    setGestureActive(true);
+    let lastAdvance = 0;
+    const detect = async () => {
+      try {
+        const faces = await detector.detect(video);
+        const y = faces[0]?.boundingBox.y;
+        if (typeof y === "number" && lastFaceY.current !== null) {
+          const delta = y - lastFaceY.current;
+          if (delta > 18 && Date.now() - lastAdvance > 1300) {
+          setStep(activeStepRef.current + 1);
+            lastAdvance = Date.now();
+          }
+        }
+        if (typeof y === "number") lastFaceY.current = y;
+      } catch {
+        stopGestureMode();
+        return;
+      }
+      gestureFrame.current = window.requestAnimationFrame(detect);
+    };
+    detect();
+  };
+
+  const finishRecipe = async () => {
+    if (!recipe) return;
+    updateBakeSession(recipe.id, {
+      completed: recipe.steps.map((_, index) => index),
+      bakeMode: false,
+    });
+    pulseFeedback(comfort.sounds);
+    const confetti = (await import("canvas-confetti")).default;
+    confetti({
+      particleCount: comfort.reducedIntensity ? 24 : 80,
+      spread: 70,
+      colors: ["#5c2e20", "#d83252", "#fff4df", "#efc272"],
+      origin: { y: 0.78 },
+    });
   };
 
   if (typeof document === "undefined") return null;
@@ -194,8 +477,8 @@ export function RecipeDetail({
                   </div>
                   <div>
                     <ChefHat size={16} />
-                    <span>Level</span>
-                    <strong>{recipe.difficulty}</strong>
+                    <span>Kitchen disaster</span>
+                    <strong>{recipe.kitchenMess || 3} / 5</strong>
                   </div>
                   <div>
                     <Zap size={16} />
@@ -211,14 +494,20 @@ export function RecipeDetail({
                   </div>
                   <div>
                     <button
-                      onClick={() => setServings((value) => Math.max(1, value - 1))}
+                      onClick={() =>
+                        updateBakeSession(recipe.id, {
+                          servings: Math.max(1, servings - 1),
+                        })
+                      }
                       aria-label="Decrease servings"
                     >
                       <Minus size={15} />
                     </button>
                     <span>{servings}</span>
                     <button
-                      onClick={() => setServings((value) => value + 1)}
+                      onClick={() =>
+                        updateBakeSession(recipe.id, { servings: servings + 1 })
+                      }
                       aria-label="Increase servings"
                     >
                       <Plus size={15} />
@@ -226,38 +515,141 @@ export function RecipeDetail({
                   </div>
                 </div>
 
-                <h3>What you need</h3>
+                <div className="portion-personality">
+                  <div>
+                    <span>Yield personality</span>
+                    <strong>
+                      {realisticPortions
+                        ? recipe.realisticYield || "One pan, eaten over the sink"
+                        : `${servings} polite portions`}
+                    </strong>
+                  </div>
+                  <button
+                    className={realisticPortions ? "is-realistic" : ""}
+                    onClick={() =>
+                      updateBakeSession(recipe.id, {
+                        realisticPortions: !realisticPortions,
+                      })
+                    }
+                  >
+                    {realisticPortions ? "Realistic" : "Polite"}
+                  </button>
+                </div>
+
+                <div className="ingredient-heading">
+                  <h3>What you need</h3>
+                  <button
+                    className={chaoticUnits ? "is-active" : ""}
+                    onClick={() => setChaoticUnits((value) => !value)}
+                  >
+                    <Scale size={14} />
+                    {chaoticUnits ? "Use real units" : "Chaos units"}
+                  </button>
+                </div>
+
+                <div className="dietary-filters">
+                  <span>Emergency filters</span>
+                  <div>
+                    {(Object.keys(dietaryLabels) as DietaryTag[]).map((tag) => (
+                      <button
+                        key={tag}
+                        className={dietaryFilters.includes(tag) ? "is-active" : ""}
+                        onClick={() =>
+                          setDietaryFilters((current) =>
+                            current.includes(tag)
+                              ? current.filter((item) => item !== tag)
+                              : [...current, tag],
+                          )
+                        }
+                      >
+                        {dietaryLabels[tag]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
                 <ul className="ingredient-list">
                   {recipe.ingredients.map((ingredient, index) => {
                     const checked = checkedIngredients.includes(index);
                     return (
                     <li key={ingredient} className={checked ? "is-checked" : ""}>
                       <button
-                        onClick={() =>
-                          setCheckedIngredients((values) =>
-                            values.includes(index)
-                              ? values.filter((value) => value !== index)
-                              : [...values, index],
-                          )
-                        }
+                        onClick={() => toggleIngredient(index)}
                         aria-label={`${checked ? "Uncheck" : "Check"} ${ingredient}`}
                       >
                         <span>{checked && <Check size={13} />}</span>
-                        {scaleIngredient(ingredient, servings / recipe.servings)}
+                        {chaoticUnits
+                          ? absurdUnit(ingredient)
+                          : scaleIngredient(
+                              ingredient,
+                              realisticPortions ? 1 : servings / recipe.servings,
+                            )}
+                      </button>
+                      <button
+                        className="substitution-roulette"
+                        onClick={() => spinSubstitution(ingredient)}
+                        aria-label={`Spin emergency substitution for ${ingredient}`}
+                      >
+                        <Dices size={15} />
                       </button>
                     </li>
                     );
                   })}
                 </ul>
 
+                <AnimatePresence>
+                  {substitution && (
+                    <motion.div
+                      className={`substitution-result ${
+                        substitution.option.reliable ? "is-real" : "is-chaos"
+                      }`}
+                      initial={{ opacity: 0, y: 12, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8 }}
+                    >
+                      <button onClick={() => setSubstitution(null)} aria-label="Close substitution">
+                        <X size={14} />
+                      </button>
+                      <span>
+                        <RotateCw size={13} />
+                        Emergency substitution roulette
+                      </span>
+                      <small>Instead of {substitution.ingredient}</small>
+                      <strong>{substitution.option.label}</strong>
+                      <em>{substitution.option.amount}</em>
+                      <p>{substitution.option.note}</p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <div className="mess-meter">
+                  <span>The kitchen disaster forecast</span>
+                  <div>
+                    {[1, 2, 3, 4, 5].map((level) => (
+                      <i
+                        key={level}
+                        className={level <= (recipe.kitchenMess || 3) ? "is-active" : ""}
+                      >
+                        {level}
+                      </i>
+                    ))}
+                  </div>
+                  <strong>{messLabels[(recipe.kitchenMess || 3) - 1]}</strong>
+                </div>
+
                 <div className="detail-action-grid">
-                  <button
+                  <motion.button
                     className={favorite ? "is-active" : ""}
-                    onClick={onToggleFavorite}
+                    whileTap={{ scaleX: 1.08, scaleY: 0.78 }}
+                    transition={{ type: "spring", stiffness: 480, damping: 18 }}
+                    onClick={() => {
+                      window.setTimeout(onToggleFavorite, 180);
+                      pulseFeedback(comfort.sounds);
+                    }}
                   >
                     <Heart size={16} fill={favorite ? "currentColor" : "none"} />
                     {favorite ? "Saved" : "Save"}
-                  </button>
+                  </motion.button>
                   <button
                     onClick={async () => {
                       await navigator.clipboard?.writeText(window.location.href);
@@ -266,10 +658,14 @@ export function RecipeDetail({
                     <Share2 size={16} />
                     Share
                   </button>
-                  <button onClick={() => window.print()}>
+                  <motion.button
+                    whileTap={{ scaleX: 1.1, scaleY: 0.76 }}
+                    transition={{ type: "spring", stiffness: 500, damping: 17 }}
+                    onClick={() => window.setTimeout(() => window.print(), 220)}
+                  >
                     <Printer size={16} />
                     Print
-                  </button>
+                  </motion.button>
                   <button
                     className={bakeMode ? "is-active" : ""}
                     onClick={toggleBakeMode}
@@ -277,6 +673,29 @@ export function RecipeDetail({
                     <Play size={16} />
                     {bakeMode ? "Exit bake mode" : "Start bake mode"}
                   </button>
+                </div>
+
+                <div className="hands-free-controls">
+                  <button
+                    className={voiceActive ? "is-active" : ""}
+                    onClick={toggleVoice}
+                  >
+                    <Mic size={16} />
+                    {voiceActive ? "Listening..." : "Voice controls"}
+                  </button>
+                  <button
+                    className={gestureActive ? "is-active" : ""}
+                    onClick={toggleGestureMode}
+                  >
+                    <Video size={16} />
+                    {gestureActive ? "Nod mode on" : "Hands covered mode"}
+                  </button>
+                  <p>
+                    Say “next step,” “check ingredient,” “complete step,” or
+                    “start timer.” On supported browsers, a strong downward nod
+                    advances the method.
+                  </p>
+                  <video ref={gestureVideo} muted playsInline aria-hidden="true" />
                 </div>
               </aside>
 
@@ -303,6 +722,10 @@ export function RecipeDetail({
                     <StepTimer
                       key={activeStep}
                       step={recipe.steps[activeStep]}
+                      timer={session?.timers[activeStep]}
+                      onChange={(timer) =>
+                        updateTimer(recipe.id, activeStep, timer)
+                      }
                     />
                   </div>
                 )}
@@ -317,24 +740,24 @@ export function RecipeDetail({
                         className={`${isComplete ? "is-complete" : ""} ${
                           bakeMode && activeStep === index ? "is-active-step" : ""
                         }`}
-                        onClick={() => bakeMode && setActiveStep(index)}
+                        onClick={() => bakeMode && setStep(index)}
                       >
                         <button
                           className="step-check"
-                          onClick={() =>
-                            setCompleted((values) =>
-                              values.includes(index)
-                                ? values.filter((value) => value !== index)
-                                : [...values, index],
-                            )
-                          }
+                          onClick={() => toggleStep(index)}
                           aria-label={`Mark step ${index + 1} ${isComplete ? "incomplete" : "complete"}`}
                         >
                           {isComplete ? <Check size={17} /> : String(index + 1).padStart(2, "0")}
                         </button>
                         <div>
                           <p>{step.text}</p>
-                          <StepTimer step={step} />
+                          <StepTimer
+                            step={step}
+                            timer={session?.timers[index]}
+                            onChange={(timer) =>
+                              updateTimer(recipe.id, index, timer)
+                            }
+                          />
                         </div>
                       </li>
                     );
@@ -380,7 +803,7 @@ export function RecipeDetail({
                     <ChevronRight size={18} />
                   </button>
                   <button className="bake-mode-exit" onClick={toggleBakeMode}>
-                    Done
+                    Pause
                   </button>
                 </>
               ) : (
@@ -391,6 +814,27 @@ export function RecipeDetail({
                 </button>
               )}
             </div>
+
+            {bakeMode && (
+              <div className="bake-completion-actions">
+                <button
+                  className="reset-bake-progress"
+                  onClick={() => {
+                    if (!recipe) return;
+                    clearBakeSession(recipe.id);
+                    stopGestureMode();
+                    onClose();
+                  }}
+                >
+                  <RotateCw size={16} />
+                  Reset progress
+                </button>
+                <button className="finish-recipe" onClick={finishRecipe}>
+                  <Sparkles size={17} />
+                  Finish recipe
+                </button>
+              </div>
+            )}
           </motion.article>
         </motion.div>
       )}

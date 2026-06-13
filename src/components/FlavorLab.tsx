@@ -1,6 +1,6 @@
 import { ArrowUpRight, Sparkles } from "lucide-react";
 import { motion } from "motion/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { dessertHeroImage } from "../lib/assets";
 import { recipeScore } from "../lib/recipe";
 import type { Recipe } from "../types";
@@ -19,6 +19,19 @@ export function FlavorLab({ recipes, onOpenRecipe }: FlavorLabProps) {
         .sort((a, b) => recipeScore(a, values) - recipeScore(b, values))[0],
     [recipes, values],
   );
+
+  useEffect(() => {
+    if (!recommendation) return;
+    window.dispatchEvent(
+      new CustomEvent("loco:shader-palette", {
+        detail: {
+          primary: recommendation.accent[0],
+          secondary: recommendation.accent[1],
+          texture: values.playful / 100,
+        },
+      }),
+    );
+  }, [recommendation, values.playful]);
 
   if (!recommendation) return null;
 

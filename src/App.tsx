@@ -1,6 +1,10 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { ComfortMenu } from "./components/ComfortMenu";
+import { DistractionLoader } from "./components/DistractionLoader";
+import { WhiskCursor } from "./components/WhiskCursor";
 import { HomePage } from "./pages/HomePage";
+import { NotFoundPage } from "./pages/NotFoundPage";
 
 const StudioPage = lazy(() =>
   import("./pages/StudioPage").then((module) => ({
@@ -11,17 +15,19 @@ const StudioPage = lazy(() =>
 export default function App() {
   return (
     <BrowserRouter basename={import.meta.env.BASE_URL}>
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route
-          path="/studio"
-          element={
-            <Suspense fallback={<div className="route-loader">Opening the studio...</div>}>
-              <StudioPage />
-            </Suspense>
-          }
-        />
-      </Routes>
+      <WhiskCursor />
+      <ComfortMenu />
+      <Suspense
+        fallback={
+          <DistractionLoader label="Opening a very organized counter..." />
+        }
+      >
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/studio" element={<StudioPage />} />
+          <Route path="*" element={<NotFoundPage />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

@@ -1,19 +1,25 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import { seedRecipes } from "../data/seedRecipes";
-import type { Recipe, RecipeRevision } from "../types";
+import { seedCollections } from "../data/seedCollections";
+import type { Recipe, RecipeCollection, RecipeRevision } from "../types";
 
 type RecipeStore = {
   recipes: Recipe[];
   favorites: string[];
   revisions: Record<string, RecipeRevision[]>;
+  collections: RecipeCollection[];
   upsertRecipe: (recipe: Recipe) => void;
   deleteRecipe: (id: string) => void;
   duplicateRecipe: (id: string) => string | undefined;
   toggleFavorite: (id: string) => void;
   togglePublished: (id: string) => void;
   replaceRecipes: (recipes: Recipe[]) => void;
+  replaceCollections: (collections: RecipeCollection[]) => void;
   restoreRevision: (recipeId: string, revisionId: string) => void;
+  upsertCollection: (collection: RecipeCollection) => void;
+  deleteCollection: (id: string) => void;
+  reorderCollections: (ids: string[]) => void;
   resetRecipes: () => void;
 };
 
@@ -23,6 +29,7 @@ export const useRecipeStore = create<RecipeStore>()(
       recipes: seedRecipes,
       favorites: [],
       revisions: {},
+      collections: seedCollections,
       upsertRecipe: (recipe) =>
         set((state) => {
           const previous = state.recipes.find((item) => item.id === recipe.id);
@@ -96,6 +103,7 @@ export const useRecipeStore = create<RecipeStore>()(
           ),
         })),
       replaceRecipes: (recipes) => set({ recipes }),
+      replaceCollections: (collections) => set({ collections }),
       restoreRevision: (recipeId, revisionId) =>
         set((state) => {
           const revision = state.revisions[recipeId]?.find(
@@ -126,11 +134,35 @@ export const useRecipeStore = create<RecipeStore>()(
             },
           };
         }),
-      resetRecipes: () => set({ recipes: seedRecipes, favorites: [], revisions: {} }),
+      upsertCollection: (collection) =>
+        set((state) => ({
+          collections: state.collections.some((item) => item.id === collection.id)
+            ? state.collections.map((item) =>
+                item.id === collection.id ? collection : item,
+              )
+            : [...state.collections, collection],
+        })),
+      deleteCollection: (id) =>
+        set((state) => ({
+          collections: state.collections.filter((item) => item.id !== id),
+        })),
+      reorderCollections: (ids) =>
+        set((state) => ({
+          collections: ids
+            .map((id) => state.collections.find((item) => item.id === id))
+            .filter((item): item is RecipeCollection => Boolean(item)),
+        })),
+      resetRecipes: () =>
+        set({
+          recipes: seedRecipes,
+          favorites: [],
+          revisions: {},
+          collections: seedCollections,
+        }),
     }),
     {
       name: "loco-for-cocoa-react-v2",
-      version: 3,
+      version: 4,
       migrate: (persisted) => {
         const state = persisted as Partial<RecipeStore>;
         return {
@@ -138,6 +170,7 @@ export const useRecipeStore = create<RecipeStore>()(
           recipes: state.recipes || seedRecipes,
           favorites: state.favorites || [],
           revisions: state.revisions || {},
+          collections: state.collections || seedCollections,
         };
       },
     },

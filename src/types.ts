@@ -1,6 +1,13 @@
 export type RecipeCategory = "cake" | "cookie" | "no-bake" | "breakfast";
 export type RecipeMood = "cozy" | "cute" | "dramatic" | "quick";
 export type RecipeDifficulty = "Easy" | "Medium" | "Project";
+export type DietaryTag =
+  | "vegetarian"
+  | "vegan"
+  | "gluten-free"
+  | "dairy-free"
+  | "egg-free"
+  | "nut-free";
 
 export type RecipeStep = {
   text: string;
@@ -11,6 +18,19 @@ export type ImageFocus = {
   x: number;
   y: number;
   zoom: number;
+};
+
+export type SubstitutionOption = {
+  label: string;
+  amount: string;
+  note: string;
+  dietary: DietaryTag[];
+  reliable: boolean;
+};
+
+export type IngredientSubstitution = {
+  match: string;
+  options: SubstitutionOption[];
 };
 
 export type Recipe = {
@@ -28,8 +48,12 @@ export type Recipe = {
   image: string;
   imageFocus?: ImageFocus;
   ingredients: string[];
+  dietary?: DietaryTag[];
+  substitutions?: IngredientSubstitution[];
   steps: RecipeStep[];
   notes: string;
+  kitchenMess?: 1 | 2 | 3 | 4 | 5;
+  realisticYield?: string;
   rating: number;
   saves: number;
   accent: [string, string];
@@ -41,4 +65,40 @@ export type RecipeRevision = {
   id: string;
   savedAt: string;
   recipe: Recipe;
+};
+
+export type RecipeCollection = {
+  id: string;
+  label: string;
+  note: string;
+  description: string;
+  recipeIds: string[];
+  enabled: boolean;
+  accent: string;
+};
+
+export type BakeTimerState = {
+  remaining: number;
+  running: boolean;
+  updatedAt: number;
+};
+
+export type BakeSession = {
+  recipeId: string;
+  completed: number[];
+  checkedIngredients: number[];
+  activeStep: number;
+  servings: number;
+  realisticPortions: boolean;
+  bakeMode: boolean;
+  timers: Record<number, BakeTimerState>;
+  updatedAt: string;
+};
+
+export type ComfortPreferences = {
+  fontScale: "compact" | "default" | "large";
+  contrast: "default" | "high";
+  reducedIntensity: boolean;
+  sounds: boolean;
+  cursorEffects: boolean;
 };

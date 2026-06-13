@@ -5,6 +5,7 @@ import {
   BarChart3,
   Check,
   ChefHat,
+  Cloud,
   Copy,
   Download,
   Eye,
@@ -14,7 +15,9 @@ import {
   History,
   Image as ImageIcon,
   LayoutDashboard,
+  Layers3,
   LockKeyhole,
+  LogOut,
   Plus,
   RotateCcw,
   Search,
@@ -30,12 +33,23 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
 import { z } from "zod";
 import { dessertHeroImage } from "../lib/assets";
+import {
+  backendConfigured,
+  loginOwner,
+  syncArchive,
+  uploadRecipeImage,
+  type AuthSession,
+} from "../lib/backend";
 import { categoryLabels, moodLabels, slugify } from "../lib/recipe";
 import { useRecipeStore } from "../store/useRecipeStore";
-import type { Recipe, RecipeCategory, RecipeMood } from "../types";
+import type {
+  DietaryTag,
+  Recipe,
+  RecipeCategory,
+  RecipeMood,
+} from "../types";
 import { RecipeImage } from "../components/RecipeImage";
-
-const ADMIN_PIN = "0420";
+import { StudioCollections } from "../components/StudioCollections";
 
 const recipeSchema = z.object({
   title: z.string().min(2, "Give this recipe a title."),
@@ -46,6 +60,18 @@ const recipeSchema = z.object({
   time: z.number().min(1),
   difficulty: z.enum(["Easy", "Medium", "Project"]),
   servings: z.number().min(1),
+  realisticYield: z.string(),
+  kitchenMess: z.number().min(1).max(5),
+  dietary: z.array(
+    z.enum([
+      "vegetarian",
+      "vegan",
+      "gluten-free",
+      "dairy-free",
+      "egg-free",
+      "nut-free",
+    ]),
+  ),
   image: z.string().min(1, "Add an image URL."),
   imageX: z.number().min(0).max(100),
   imageY: z.number().min(0).max(100),
@@ -79,6 +105,9 @@ const blankRecipe = (): RecipeFormData => ({
   time: 45,
   difficulty: "Easy",
   servings: 8,
+  realisticYield: "1 pan, eaten over the sink at 2 AM",
+  kitchenMess: 2,
+  dietary: ["vegetarian"],
   image: dessertHeroImage,
   imageX: 50,
   imageY: 50,
@@ -102,6 +131,10 @@ function recipeToForm(recipe: Recipe): RecipeFormData {
     time: recipe.time,
     difficulty: recipe.difficulty,
     servings: recipe.servings,
+    realisticYield:
+      recipe.realisticYield || "1 pan, eaten over the sink at 2 AM",
+    kitchenMess: recipe.kitchenMess || 2,
+    dietary: recipe.dietary || ["vegetarian"],
     image: recipe.image,
     imageX: recipe.imageFocus?.x ?? 50,
     imageY: recipe.imageFocus?.y ?? 50,
@@ -118,13 +151,19 @@ function recipeToForm(recipe: Recipe): RecipeFormData {
 
 type RecipeEditorProps = {
   recipe?: Recipe;
+  authToken: string;
   onSaved: (id: string) => void;
   onDeleted: () => void;
 };
 
 const EMPTY_REVISIONS: never[] = [];
 
-function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
+function RecipeEditor({
+  recipe,
+  authToken,
+  onSaved,
+  onDeleted,
+}: RecipeEditorProps) {
   const upsertRecipe = useRecipeStore((state) => state.upsertRecipe);
   const deleteRecipe = useRecipeStore((state) => state.deleteRecipe);
   const duplicateRecipe = useRecipeStore((state) => state.duplicateRecipe);
@@ -135,6 +174,9 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
     "content" | "method" | "preview" | "history"
   >("content");
   const [saved, setSaved] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
+  const imageFileInput = useRef<HTMLInputElement>(null);
   const [autosaveState, setAutosaveState] = useState("Draft protected");
   const {
     register,
@@ -250,6 +292,9 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
       time: data.time,
       difficulty: data.difficulty,
       servings: data.servings,
+      realisticYield: data.realisticYield,
+      kitchenMess: data.kitchenMess as 1 | 2 | 3 | 4 | 5,
+      dietary: data.dietary,
       image: data.image,
       imageFocus: {
         x: data.imageX,
@@ -332,6 +377,15 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
       </div>
 
       <div className="editor-quality-strip">
+        <div
+          className={`readiness-cookie ${qualityScore >= 85 ? "is-baked" : ""}`}
+          aria-hidden="true"
+        >
+          <span />
+          <i />
+          <i />
+          <i />
+        </div>
         <div
           className="quality-ring"
           style={{ "--quality": `${qualityScore}%` } as React.CSSProperties}
@@ -427,6 +481,50 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
                     <ImageIcon size={16} />
                     <input {...register("image")} placeholder="https://..." />
                   </div>
+                  <div className="image-upload-row">
+                    <button
+                      type="button"
+                      disabled={uploading}
+                      onClick={() => imageFileInput.current?.click()}
+                    >
+                      <Upload size={15} />
+                      {uploading ? "Uploading..." : "Upload image"}
+                    </button>
+                    <small>
+                      {backendConfigured
+                        ? "Uploads directly to your configured cloud storage."
+                        : "Preview mode stores this image in the browser."}
+                    </small>
+                  </div>
+                  <input
+                    ref={imageFileInput}
+                    hidden
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp,image/avif"
+                    onChange={async (event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      setUploading(true);
+                      setUploadError("");
+                      try {
+                        const url = await uploadRecipeImage(file, authToken);
+                        setValue("image", url, {
+                          shouldDirty: true,
+                          shouldValidate: true,
+                        });
+                      } catch (error) {
+                        setUploadError(
+                          error instanceof Error
+                            ? error.message
+                            : "Image upload failed.",
+                        );
+                      } finally {
+                        setUploading(false);
+                        event.target.value = "";
+                      }
+                    }}
+                  />
+                  {uploadError && <small>{uploadError}</small>}
                   {errors.image && <small>{errors.image.message}</small>}
                 </label>
                 <div className="image-crop-editor wide-field">
@@ -502,6 +600,13 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
                   <span>Servings</span>
                   <input type="number" {...register("servings", { valueAsNumber: true })} />
                 </label>
+                <label className="wide-field">
+                  <span>Realistic portions</span>
+                  <input
+                    {...register("realisticYield")}
+                    placeholder="1 pan, eaten over the sink at 2 AM"
+                  />
+                </label>
                 <label>
                   <span>Difficulty</span>
                   <select {...register("difficulty")}>
@@ -510,6 +615,37 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
                     <option>Project</option>
                   </select>
                 </label>
+                <label>
+                  <span>Kitchen disaster · {values.kitchenMess}/5</span>
+                  <input
+                    type="range"
+                    min="1"
+                    max="5"
+                    {...register("kitchenMess", { valueAsNumber: true })}
+                  />
+                </label>
+                <fieldset className="dietary-editor wide-field">
+                  <legend>Dietary notes</legend>
+                  {(
+                    [
+                      "vegetarian",
+                      "vegan",
+                      "gluten-free",
+                      "dairy-free",
+                      "egg-free",
+                      "nut-free",
+                    ] as DietaryTag[]
+                  ).map((tag) => (
+                    <label key={tag}>
+                      <input
+                        type="checkbox"
+                        value={tag}
+                        {...register("dietary")}
+                      />
+                      <span>{tag.replace("-", " ")}</span>
+                    </label>
+                  ))}
+                </fieldset>
                 <div className="color-pair">
                   <label>
                     <span>Accent A</span>
@@ -838,9 +974,20 @@ function RecipeEditor({ recipe, onSaved, onDeleted }: RecipeEditorProps) {
   );
 }
 
-function StudioLogin({ onUnlock }: { onUnlock: () => void }) {
-  const [pin, setPin] = useState("");
+function StudioLogin({
+  onUnlock,
+}: {
+  onUnlock: (session: AuthSession) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const unlock = (session: AuthSession) => {
+    sessionStorage.setItem("loco-studio-session", JSON.stringify(session));
+    onUnlock(session);
+  };
 
   return (
     <main className="studio-login">
@@ -857,13 +1004,21 @@ function StudioLogin({ onUnlock }: { onUnlock: () => void }) {
       <motion.form
         initial={{ opacity: 0, x: 30 }}
         animate={{ opacity: 1, x: 0 }}
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
-          if (pin === ADMIN_PIN) {
-            sessionStorage.setItem("loco-studio-unlocked", "true");
-            onUnlock();
-          } else {
-            setError("That PIN is not on the prep list.");
+          if (!backendConfigured) return;
+          setLoading(true);
+          setError("");
+          try {
+            unlock(await loginOwner(email, password));
+          } catch (loginError) {
+            setError(
+              loginError instanceof Error
+                ? loginError.message
+                : "Unable to open the Studio.",
+            );
+          } finally {
+            setLoading(false);
           }
         }}
       >
@@ -877,34 +1032,74 @@ function StudioLogin({ onUnlock }: { onUnlock: () => void }) {
         <span>Private kitchen / owner access</span>
         <h1>Open the recipe studio.</h1>
         <p>
-          Draft, test, and publish sweet things from one very organized counter.
+          Draft, test, upload, and publish sweet things from one very organized
+          counter.
         </p>
         <label>
-          <span>Kitchen PIN</span>
+          <span>Owner email</span>
           <input
             autoFocus
-            type="password"
-            inputMode="numeric"
-            value={pin}
+            type="email"
+            autoComplete="email"
+            value={email}
             onChange={(event) => {
-              setPin(event.target.value);
+              setEmail(event.target.value);
               setError("");
             }}
-            placeholder="Try 0420"
+            placeholder="you@locoforcocoa.com"
+            disabled={!backendConfigured}
+          />
+        </label>
+        <label>
+          <span>Password</span>
+          <input
+            type="password"
+            autoComplete="current-password"
+            value={password}
+            onChange={(event) => {
+              setPassword(event.target.value);
+              setError("");
+            }}
+            placeholder="Your Studio password"
+            disabled={!backendConfigured}
           />
         </label>
         <small className="login-error">{error}</small>
-        <button className="studio-primary">
-          Enter studio
-          <ArrowUpRight size={17} />
-        </button>
-        <small>Demo access: 0420 · Change the PIN before publishing.</small>
+        {backendConfigured ? (
+          <button className="studio-primary" disabled={loading}>
+            {loading ? "Checking the guest list..." : "Enter studio"}
+            <ArrowUpRight size={17} />
+          </button>
+        ) : (
+          <button
+            className="studio-primary"
+            type="button"
+            onClick={() =>
+              unlock({
+                token: "local-preview",
+                user: {
+                  id: "local-owner",
+                  email: "preview@locoforcocoa.local",
+                  name: "Local preview",
+                },
+              })
+            }
+          >
+            Open local preview
+            <ArrowUpRight size={17} />
+          </button>
+        )}
+        <small>
+          {backendConfigured
+            ? "Secure access is handled by your configured Vercel API."
+            : "Backend not connected yet. Preview data and image uploads stay in this browser."}
+        </small>
       </motion.form>
     </main>
   );
 }
 
-type StudioView = "recipes" | "performance" | "saves";
+type StudioView = "recipes" | "collections" | "performance" | "saves";
 
 function PerformanceView({ recipes }: { recipes: Recipe[] }) {
   const ranked = [...recipes].sort((a, b) => b.saves - a.saves);
@@ -1142,11 +1337,21 @@ function CommunitySavesView({ recipes }: { recipes: Recipe[] }) {
 export function StudioPage() {
   const recipes = useRecipeStore((state) => state.recipes);
   const replaceRecipes = useRecipeStore((state) => state.replaceRecipes);
+  const collections = useRecipeStore((state) => state.collections);
+  const replaceCollections = useRecipeStore(
+    (state) => state.replaceCollections,
+  );
   const resetRecipes = useRecipeStore((state) => state.resetRecipes);
   const togglePublished = useRecipeStore((state) => state.togglePublished);
-  const [unlocked, setUnlocked] = useState(
-    () => sessionStorage.getItem("loco-studio-unlocked") === "true",
-  );
+  const [session, setSession] = useState<AuthSession | null>(() => {
+    const stored = sessionStorage.getItem("loco-studio-session");
+    if (!stored) return null;
+    try {
+      return JSON.parse(stored) as AuthSession;
+    } catch {
+      return null;
+    }
+  });
   const [selectedId, setSelectedId] = useState<string | null>(
     recipes[0]?.id || null,
   );
@@ -1173,6 +1378,10 @@ export function StudioPage() {
       eyebrow: "Recipe workspace",
       title: "Good evening, baker.",
     },
+    collections: {
+      eyebrow: "Homepage curation",
+      title: "Arrange the sweet shelves.",
+    },
     performance: {
       eyebrow: "Archive analytics",
       title: "See what is landing.",
@@ -1182,13 +1391,17 @@ export function StudioPage() {
       title: "Follow the sweet spots.",
     },
   }[studioView];
+  const collectionsCount = collections.length;
 
-  if (!unlocked) return <StudioLogin onUnlock={() => setUnlocked(true)} />;
+  if (!session) return <StudioLogin onUnlock={setSession} />;
 
   const exportRecipes = () => {
-    const blob = new Blob([JSON.stringify(recipes, null, 2)], {
+    const blob = new Blob(
+      [JSON.stringify({ version: 1, recipes, collections }, null, 2)],
+      {
       type: "application/json",
-    });
+      },
+    );
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement("a");
     anchor.href = url;
@@ -1220,6 +1433,14 @@ export function StudioPage() {
             <span>{recipes.length}</span>
           </button>
           <button
+            className={studioView === "collections" ? "is-active" : ""}
+            onClick={() => setStudioView("collections")}
+          >
+            <Layers3 size={17} />
+            Collections
+            <span>{collectionsCount}</span>
+          </button>
+          <button
             className={studioView === "performance" ? "is-active" : ""}
             onClick={() => setStudioView("performance")}
           >
@@ -1238,6 +1459,29 @@ export function StudioPage() {
         </nav>
 
         <div className="sidebar-bottom">
+          {backendConfigured && (
+            <button
+              onClick={async () => {
+                try {
+                  const result = await syncArchive(
+                    recipes,
+                    collections,
+                    session.token,
+                  );
+                  replaceRecipes(result.recipes);
+                  replaceCollections(result.collections);
+                  window.alert("Studio and cloud archive are in sync.");
+                } catch (error) {
+                  window.alert(
+                    error instanceof Error ? error.message : "Cloud sync failed.",
+                  );
+                }
+              }}
+            >
+              <Cloud size={16} />
+              Sync cloud archive
+            </button>
+          )}
           <button onClick={exportRecipes}>
             <Download size={16} />
             Export JSON
@@ -1258,6 +1502,14 @@ export function StudioPage() {
               if (Array.isArray(parsed)) {
                 replaceRecipes(parsed as Recipe[]);
                 setSelectedId(parsed[0]?.id || null);
+              } else if (
+                parsed &&
+                Array.isArray(parsed.recipes) &&
+                Array.isArray(parsed.collections)
+              ) {
+                replaceRecipes(parsed.recipes as Recipe[]);
+                replaceCollections(parsed.collections);
+                setSelectedId(parsed.recipes[0]?.id || null);
               }
               event.target.value = "";
             }}
@@ -1277,6 +1529,15 @@ export function StudioPage() {
             <ArrowLeft size={16} />
             View live site
           </Link>
+          <button
+            onClick={() => {
+              sessionStorage.removeItem("loco-studio-session");
+              setSession(null);
+            }}
+          >
+            <LogOut size={16} />
+            Sign out
+          </button>
         </div>
       </aside>
 
@@ -1391,6 +1652,7 @@ export function StudioPage() {
             <RecipeEditor
               key={creating ? "new" : selected?.id || "empty"}
               recipe={creating ? undefined : selected}
+              authToken={session.token}
               onSaved={(id) => {
                 setCreating(false);
                 setSelectedId(id);
@@ -1405,6 +1667,7 @@ export function StudioPage() {
           </div>
         )}
 
+        {studioView === "collections" && <StudioCollections />}
         {studioView === "performance" && <PerformanceView recipes={recipes} />}
         {studioView === "saves" && <CommunitySavesView recipes={recipes} />}
       </section>
