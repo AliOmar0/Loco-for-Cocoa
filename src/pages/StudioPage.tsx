@@ -77,6 +77,21 @@ const recipeSchema = z.object({
       "nut-free",
     ]),
   ),
+  nutrition: z
+    .object({
+      calories: z.number().min(0),
+      protein: z.number().min(0),
+      carbohydrates: z.number().min(0),
+      fat: z.number().min(0),
+      sugar: z.number().min(0),
+      fiber: z.number().min(0),
+      sodium: z.number().min(0),
+      source: z.enum(["USDA FoodData Central", "AI estimate"]),
+      basis: z.literal("per serving"),
+      coverage: z.string().optional(),
+      disclaimer: z.string(),
+    })
+    .optional(),
   image: z.string().min(1, "Add an image URL."),
   imageX: z.number().min(0).max(100),
   imageY: z.number().min(0).max(100),
@@ -113,6 +128,7 @@ const blankRecipe = (): RecipeFormData => ({
   realisticYield: "1 pan, eaten over the sink at 2 AM",
   kitchenMess: 2,
   dietary: ["vegetarian"],
+  nutrition: undefined,
   image: dessertHeroImage,
   imageX: 50,
   imageY: 50,
@@ -140,6 +156,7 @@ function recipeToForm(recipe: Recipe): RecipeFormData {
       recipe.realisticYield || "1 pan, eaten over the sink at 2 AM",
     kitchenMess: recipe.kitchenMess || 2,
     dietary: recipe.dietary || ["vegetarian"],
+    nutrition: recipe.nutrition,
     image: recipe.image,
     imageX: recipe.imageFocus?.x ?? 50,
     imageY: recipe.imageFocus?.y ?? 50,
@@ -312,6 +329,15 @@ function RecipeEditor({
     if (draft.dietary?.length) {
       setValue("dietary", draft.dietary, markField);
     }
+    if (draft.nutrition) {
+      setValue("nutrition", draft.nutrition, markField);
+    }
+    if (draft.image) {
+      setValue("image", draft.image, markField);
+      setValue("imageX", 50, markField);
+      setValue("imageY", 50, markField);
+      setValue("imageZoom", 1, markField);
+    }
     if (draft.notes) setValue("notes", draft.notes, markField);
     ingredientFields.replace(
       draft.ingredients.map((value) => ({ value })),
@@ -354,6 +380,7 @@ function RecipeEditor({
       realisticYield: data.realisticYield,
       kitchenMess: data.kitchenMess as 1 | 2 | 3 | 4 | 5,
       dietary: data.dietary,
+      nutrition: data.nutrition,
       image: data.image,
       imageFocus: {
         x: data.imageX,
@@ -749,6 +776,7 @@ function RecipeEditor({
         {tab === "epicure" && (
           <EpicureLab
             key="epicure"
+            authToken={authToken}
             storageKey={`loco-epicure-brief-${recipe?.id || "new"}`}
             currentIngredients={values.ingredients.map((item) => item.value)}
             initialCategory={values.category}

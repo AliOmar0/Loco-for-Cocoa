@@ -1,4 +1,13 @@
-import type { Recipe, RecipeCollection } from "../types";
+import type {
+  DietaryTag,
+  NutritionInfo,
+  Recipe,
+  RecipeCategory,
+  RecipeDifficulty,
+  RecipeMood,
+  RecipeStep,
+  RecipeCollection,
+} from "../types";
 
 const deployedOnVercel =
   typeof window !== "undefined" && window.location.hostname.endsWith(".vercel.app")
@@ -22,6 +31,67 @@ export type CloudArchive = {
   version: number;
   updatedAt: string | null;
   initialized: boolean;
+};
+
+export type EpicurePairings = {
+  raw: string;
+  clusters: Array<{
+    id: string;
+    label: string;
+    ingredients: Array<{ name: string; score: number }>;
+  }>;
+  bridges: Array<{ name: string; connects: string[]; coverage: string }>;
+  suggestions: string[];
+};
+
+export type AiRecipeRequest = {
+  ingredients: string[];
+  category: RecipeCategory;
+  complexity: RecipeDifficulty;
+  servings: number;
+  cuisine: string;
+  specialRequests: string;
+  vegetarian: boolean;
+  plantBased: boolean;
+  generateImage: boolean;
+};
+
+export type AiRecipeDraft = {
+  title: string;
+  subtitle: string;
+  description: string;
+  category: RecipeCategory;
+  mood: RecipeMood;
+  time: number;
+  difficulty: RecipeDifficulty;
+  servings: number;
+  realisticYield: string;
+  kitchenMess: number;
+  dietary: DietaryTag[];
+  ingredients: string[];
+  steps: RecipeStep[];
+  notes: string;
+  nutrition: NutritionInfo;
+  image?: string;
+};
+
+export type AiRecipePackage = {
+  recipe: AiRecipeDraft;
+  pairings: EpicurePairings;
+  providers: {
+    recipe: string;
+    nutrition: NutritionInfo["source"];
+    image: string | null;
+  };
+  warnings: string[];
+};
+
+export type AiProviderStatus = {
+  epicure: boolean;
+  recipe: boolean;
+  nutrition: boolean;
+  image: boolean;
+  models: { recipe: string; image: string };
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -117,5 +187,33 @@ export function syncArchive(
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify({ recipes, collections }),
+  });
+}
+
+export function getAiProviderStatus(token: string) {
+  return request<AiProviderStatus>("/api/ai/status", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+}
+
+export function getEpicurePairings(
+  payload: Pick<
+    AiRecipeRequest,
+    "ingredients" | "vegetarian" | "plantBased"
+  >,
+  token: string,
+) {
+  return request<EpicurePairings>("/api/ai/pairings", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function generateAiRecipe(payload: AiRecipeRequest, token: string) {
+  return request<AiRecipePackage>("/api/ai/recipe", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
   });
 }

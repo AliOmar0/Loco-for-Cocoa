@@ -589,6 +589,52 @@ export function RecipeDetail({
                         Use the scale and dice controls beside an ingredient for
                         absurd measurements or a practical substitution.
                       </p>
+                      {recipe.nutrition && (
+                        <section className="recipe-nutrition">
+                          <div>
+                            <span>Nutrition snapshot</span>
+                            <small>
+                              {recipe.nutrition.basis} · {recipe.nutrition.source}
+                            </small>
+                          </div>
+                          <dl>
+                            <div>
+                              <dt>Calories</dt>
+                              <dd>{recipe.nutrition.calories} kcal</dd>
+                            </div>
+                            <div>
+                              <dt>Protein</dt>
+                              <dd>{recipe.nutrition.protein} g</dd>
+                            </div>
+                            <div>
+                              <dt>Carbs</dt>
+                              <dd>{recipe.nutrition.carbohydrates} g</dd>
+                            </div>
+                            <div>
+                              <dt>Fat</dt>
+                              <dd>{recipe.nutrition.fat} g</dd>
+                            </div>
+                            <div>
+                              <dt>Sugar</dt>
+                              <dd>{recipe.nutrition.sugar} g</dd>
+                            </div>
+                            <div>
+                              <dt>Fiber</dt>
+                              <dd>{recipe.nutrition.fiber} g</dd>
+                            </div>
+                            <div>
+                              <dt>Sodium</dt>
+                              <dd>{recipe.nutrition.sodium} mg</dd>
+                            </div>
+                          </dl>
+                          <p>
+                            {recipe.nutrition.coverage
+                              ? `${recipe.nutrition.coverage}. `
+                              : ""}
+                            {recipe.nutrition.disclaimer}
+                          </p>
+                        </section>
+                      )}
                     </motion.div>
                   )}
                 </AnimatePresence>

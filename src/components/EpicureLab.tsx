@@ -1,20 +1,35 @@
 import {
   ArrowUpRight,
   Check,
-  Clipboard,
-  Copy,
+  ChevronDown,
+  CircleAlert,
   ExternalLink,
   FlaskConical,
+  Image as ImageIcon,
   Leaf,
-  Link2,
+  LoaderCircle,
   Plus,
   RotateCcw,
+  Search,
   Sparkles,
   WandSparkles,
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useMemo, useState } from "react";
+import {
+  epicureIngredientCategories,
+  epicureIngredients,
+} from "../data/epicureIngredients";
+import {
+  backendConfigured,
+  generateAiRecipe,
+  getAiProviderStatus,
+  getEpicurePairings,
+  type AiProviderStatus,
+  type AiRecipeDraft,
+  type EpicurePairings,
+} from "../lib/backend";
 import type {
   DietaryTag,
   RecipeCategory,
@@ -24,46 +39,22 @@ import type {
 } from "../types";
 
 const EPICURE_URL = "https://epicure.kaikaku.ai";
-const EPICURE_MCP_URL = "https://epicure-mcp.kaikaku.ai/mcp";
+const EPICURE_ABOUT_URL = "https://epicure.kaikaku.ai/about";
 
-const dietaryOptions: DietaryTag[] = [
-  "vegetarian",
-  "vegan",
-  "gluten-free",
-  "dairy-free",
-  "egg-free",
-  "nut-free",
+const sweetStartingPoints = [
+  "chocolate",
+  "cocoa",
+  "strawberry",
+  "coffee",
+  "hazelnut",
+  "pistachio",
+  "tahini",
+  "black_sesame",
+  "cherry",
+  "orange",
+  "cardamom",
+  "miso",
 ];
-
-const sweetIngredients = [
-  "Chocolate",
-  "Cocoa",
-  "Strawberry",
-  "Coffee",
-  "Hazelnut",
-  "Pistachio",
-  "Tahini",
-  "Black sesame",
-  "Cherry",
-  "Orange",
-  "Cardamom",
-  "Miso",
-];
-
-const studioPairings: Record<string, string[]> = {
-  chocolate: ["Coffee", "Raspberry", "Hazelnut", "Orange", "Cardamom", "Tahini"],
-  cocoa: ["Cinnamon", "Chili", "Coffee", "Black sesame", "Cherry", "Miso"],
-  strawberry: ["Basil", "Lemon", "Vanilla", "Balsamic", "White chocolate"],
-  coffee: ["Chocolate", "Cardamom", "Caramel", "Hazelnut", "Orange"],
-  hazelnut: ["Chocolate", "Coffee", "Pear", "Brown butter", "Cherry"],
-  pistachio: ["Rose", "Orange blossom", "Raspberry", "Lemon", "Dark chocolate"],
-  tahini: ["Chocolate", "Date", "Honey", "Coffee", "Sesame"],
-  "black sesame": ["Cocoa", "Strawberry", "Miso", "Coconut", "Honey"],
-  cherry: ["Chocolate", "Almond", "Coffee", "Vanilla", "Black pepper"],
-  orange: ["Chocolate", "Cardamom", "Pistachio", "Rosemary", "Coffee"],
-  cardamom: ["Coffee", "Chocolate", "Pear", "Orange", "Pistachio"],
-  miso: ["Caramel", "Chocolate", "Brown butter", "Sesame", "Maple"],
-};
 
 type EpicureBrief = {
   ingredients: string[];
@@ -74,26 +65,18 @@ type EpicureBrief = {
   specialRequests: string;
   vegetarian: boolean;
   plantBased: boolean;
+  generateImage: boolean;
 };
 
-export type EpicureDraft = {
+export type EpicureDraft = Partial<AiRecipeDraft> & {
   title: string;
-  subtitle?: string;
-  description?: string;
-  category?: RecipeCategory;
-  mood?: RecipeMood;
-  time?: number;
-  difficulty?: RecipeDifficulty;
-  servings?: number;
-  realisticYield?: string;
-  kitchenMess?: number;
-  dietary?: DietaryTag[];
   ingredients: string[];
   steps: RecipeStep[];
-  notes?: string;
+  mood?: RecipeMood;
 };
 
 type EpicureLabProps = {
+  authToken: string;
   storageKey: string;
   currentIngredients: string[];
   initialCategory: RecipeCategory;
@@ -104,6 +87,12 @@ type EpicureLabProps = {
   onUseIngredients: (ingredients: string[]) => void;
 };
 
+function displayName(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
 function ingredientName(value: string) {
   return value
     .replace(
@@ -111,130 +100,56 @@ function ingredientName(value: string) {
       "",
     )
     .replace(/,\s*.*$/, "")
-    .trim();
+    .trim()
+    .replace(/\s+/g, "_")
+    .toLowerCase();
 }
 
-function normalizeCategory(value: unknown): RecipeCategory | undefined {
-  const label = String(value || "").toLowerCase();
-  if (label.includes("cookie") || label.includes("biscuit")) return "cookie";
-  if (label.includes("no-bake") || label.includes("no bake") || label.includes("truffle")) {
-    return "no-bake";
-  }
-  if (label.includes("breakfast") || label.includes("toast") || label.includes("pancake")) {
-    return "breakfast";
-  }
-  if (label.includes("cake") || label.includes("cupcake") || label.includes("dessert")) {
-    return "cake";
-  }
-  return undefined;
-}
-
-function normalizeDifficulty(value: unknown): RecipeDifficulty | undefined {
-  const label = String(value || "").toLowerCase();
-  if (label.includes("project") || label.includes("fine")) return "Project";
-  if (label.includes("medium") || label.includes("casual")) return "Medium";
-  if (label.includes("easy") || label.includes("home")) return "Easy";
-  return undefined;
-}
-
-function normalizeMood(value: unknown): RecipeMood | undefined {
-  const label = String(value || "").toLowerCase();
-  if (label.includes("dramatic") || label.includes("elegant")) return "dramatic";
-  if (label.includes("cute") || label.includes("playful")) return "cute";
-  if (label.includes("quick") || label.includes("urgent")) return "quick";
-  if (label.includes("cozy") || label.includes("comfort")) return "cozy";
-  return undefined;
-}
-
-function parseEpicureDraft(input: string): EpicureDraft {
+function parseFallbackDraft(input: string): EpicureDraft {
   const cleaned = input
     .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/, "");
-  const start = cleaned.indexOf("{");
-  const end = cleaned.lastIndexOf("}");
-  if (start < 0 || end <= start) {
-    throw new Error("Paste the JSON recipe returned by Epicure or your AI chat.");
-  }
-
-  const parsed = JSON.parse(cleaned.slice(start, end + 1)) as Record<string, unknown>;
-  const rawIngredients = Array.isArray(parsed.ingredients) ? parsed.ingredients : [];
-  const ingredients = rawIngredients
-    .map((item) =>
-      typeof item === "string"
-        ? item
-        : typeof item === "object" && item
-          ? String(
-              (item as Record<string, unknown>).amount
-                ? `${(item as Record<string, unknown>).amount} ${
-                    (item as Record<string, unknown>).name || ""
-                  }`
-                : (item as Record<string, unknown>).name || "",
-            )
-          : "",
-    )
-    .map((item) => item.trim())
-    .filter(Boolean);
-
-  const rawSteps = Array.isArray(parsed.steps)
+  const parsed = JSON.parse(
+    cleaned.slice(cleaned.indexOf("{"), cleaned.lastIndexOf("}") + 1),
+  ) as Record<string, unknown>;
+  const ingredients = Array.isArray(parsed.ingredients)
+    ? parsed.ingredients.map(String).filter(Boolean)
+    : [];
+  const steps = Array.isArray(parsed.steps)
     ? parsed.steps
-    : Array.isArray(parsed.method)
-      ? parsed.method
-      : [];
-  const steps = rawSteps
-    .map((item): RecipeStep | null => {
-      if (typeof item === "string") return { text: item };
-      if (!item || typeof item !== "object") return null;
-      const row = item as Record<string, unknown>;
-      const text = String(row.text || row.instruction || "").trim();
-      if (!text) return null;
-      const duration = Number(row.duration || row.minutes || 0);
-      return {
-        text,
-        ...(duration > 0 ? { duration } : {}),
-      };
-    })
-    .filter((item): item is RecipeStep => Boolean(item));
-
+        .map((step): RecipeStep | null => {
+          if (typeof step === "string") return { text: step };
+          if (!step || typeof step !== "object") return null;
+          const row = step as Record<string, unknown>;
+          const text = String(row.text || row.instruction || "").trim();
+          return text
+            ? {
+                text,
+                ...(Number(row.duration) > 0
+                  ? { duration: Number(row.duration) }
+                  : {}),
+              }
+            : null;
+        })
+        .filter((step): step is RecipeStep => Boolean(step))
+    : [];
   const title = String(parsed.title || parsed.name || "").trim();
-  if (!title || ingredients.length === 0 || steps.length === 0) {
-    throw new Error("The draft needs a title, at least one ingredient, and one method step.");
+  if (!title || !ingredients.length || !steps.length) {
+    throw new Error("The JSON needs a title, ingredients, and method steps.");
   }
-
-  const dietary = Array.isArray(parsed.dietary)
-    ? parsed.dietary
-        .map((item) => String(item).toLowerCase())
-        .filter((item): item is DietaryTag =>
-          dietaryOptions.includes(item as DietaryTag),
-        )
-    : undefined;
-  const time = Number(parsed.time || parsed.totalTime || parsed.total_time || 0);
-  const servings = Number(parsed.servings || parsed.yield || 0);
-  const kitchenMess = Number(parsed.kitchenMess || parsed.kitchen_mess || 0);
-
   return {
     title,
-    subtitle: String(parsed.subtitle || parsed.hook || "").trim() || undefined,
-    description:
-      String(parsed.description || parsed.summary || "").trim() || undefined,
-    category: normalizeCategory(parsed.category || parsed.dishType || parsed.dish_type),
-    mood: normalizeMood(parsed.mood),
-    time: time > 0 ? time : undefined,
-    difficulty: normalizeDifficulty(parsed.difficulty || parsed.complexity),
-    servings: servings > 0 ? servings : undefined,
-    realisticYield:
-      String(parsed.realisticYield || parsed.realistic_yield || "").trim() ||
-      undefined,
-    kitchenMess:
-      kitchenMess > 0 ? Math.max(1, Math.min(5, kitchenMess)) : undefined,
-    dietary,
+    subtitle: String(parsed.subtitle || "").trim() || undefined,
+    description: String(parsed.description || "").trim() || undefined,
     ingredients,
     steps,
-    notes: String(parsed.notes || parsed.tips || "").trim() || undefined,
+    notes: String(parsed.notes || "").trim() || undefined,
   };
 }
 
 export function EpicureLab({
+  authToken,
   storageKey,
   currentIngredients,
   initialCategory,
@@ -254,6 +169,7 @@ export function EpicureLab({
       specialRequests: "",
       vegetarian: initialDietary.includes("vegetarian"),
       plantBased: initialDietary.includes("vegan"),
+      generateImage: true,
     };
     try {
       const stored = localStorage.getItem(storageKey);
@@ -262,84 +178,123 @@ export function EpicureLab({
       return fallback;
     }
   });
-  const [ingredientInput, setIngredientInput] = useState("");
-  const [importText, setImportText] = useState("");
+  const [query, setQuery] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("All");
+  const [pairings, setPairings] = useState<EpicurePairings | null>(null);
+  const [generated, setGenerated] = useState<AiRecipeDraft | null>(null);
+  const [warnings, setWarnings] = useState<string[]>([]);
+  const [providers, setProviders] = useState<AiProviderStatus | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
+  const [generationBusy, setGenerationBusy] = useState(false);
   const [status, setStatus] = useState("");
-  const [copied, setCopied] = useState<"brief" | "connector" | null>(null);
+  const [fallbackJson, setFallbackJson] = useState("");
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(brief));
   }, [brief, storageKey]);
 
-  const pairingIdeas = useMemo(() => {
-    const ideas = brief.ingredients.flatMap(
-      (item) => studioPairings[item.toLowerCase()] || [],
-    );
-    return [...new Set(ideas)]
+  useEffect(() => {
+    if (!backendConfigured || !authToken) return;
+    getAiProviderStatus(authToken)
+      .then(setProviders)
+      .catch(() => setProviders(null));
+  }, [authToken]);
+
+  const searchResults = useMemo(() => {
+    const normalized = query.trim().toLowerCase().replace(/\s+/g, "_");
+    if (!normalized && categoryFilter === "All") return [];
+    return epicureIngredients
       .filter(
-        (item) =>
+        (ingredient) =>
+          categoryFilter === "All" || ingredient.category === categoryFilter,
+      )
+      .filter(
+        (ingredient) =>
+          !normalized ||
+          ingredient.name.includes(normalized) ||
+          ingredient.category.toLowerCase().includes(normalized),
+      )
+      .filter(
+        (ingredient) =>
           !brief.ingredients.some(
-            (selected) => selected.toLowerCase() === item.toLowerCase(),
+            (selected) => selected.toLowerCase() === ingredient.name,
           ),
       )
-      .slice(0, 8);
-  }, [brief.ingredients]);
-
-  const prompt = useMemo(() => {
-    const dietary = [
-      brief.vegetarian ? "vegetarian" : "",
-      brief.plantBased ? "plant-based" : "",
-    ]
-      .filter(Boolean)
-      .join(", ");
-    return `Use Epicure's flavour-pairing intelligence to design a ${
-      brief.category === "no-bake" ? "no-bake dessert" : brief.category
-    } for Loco for Cocoa.
-
-Core ingredients: ${brief.ingredients.join(", ") || "choose a cocoa-friendly pairing"}
-Flavour profile: sweet
-Complexity: ${brief.complexity}
-Servings: ${brief.servings}
-Cuisine context: ${brief.cuisine || "open"}
-Dietary direction: ${dietary || "none"}
-Special requests: ${brief.specialRequests || "none"}
-
-Return ONLY valid JSON. Use this exact shape:
-{
-  "title": "short editorial title",
-  "subtitle": "one-line archive hook",
-  "description": "why this dessert is special",
-  "category": "${brief.category}",
-  "mood": "cozy | cute | dramatic | quick",
-  "time": 45,
-  "difficulty": "Easy | Medium | Project",
-  "servings": ${brief.servings},
-  "realisticYield": "a playful realistic yield",
-  "kitchenMess": 2,
-  "dietary": ["vegetarian"],
-  "ingredients": ["quantity + ingredient"],
-  "steps": [{"text": "one clear action", "duration": 5}],
-  "notes": "one practical baker's note"
-}`;
-  }, [brief]);
+      .slice(0, 24);
+  }, [brief.ingredients, categoryFilter, query]);
 
   const addIngredient = (value: string) => {
-    const next = value.trim();
-    if (!next) return;
+    const normalized = ingredientName(value);
+    if (!normalized) return;
     setBrief((current) =>
       current.ingredients.some(
-        (ingredient) => ingredient.toLowerCase() === next.toLowerCase(),
+        (ingredient) => ingredient.toLowerCase() === normalized,
       )
         ? current
-        : { ...current, ingredients: [...current.ingredients, next] },
+        : { ...current, ingredients: [...current.ingredients, normalized] },
     );
-    setIngredientInput("");
+    setQuery("");
+    setPairings(null);
+    setGenerated(null);
   };
 
-  const copyText = async (value: string, type: "brief" | "connector") => {
-    await navigator.clipboard.writeText(value);
-    setCopied(type);
-    window.setTimeout(() => setCopied(null), 1800);
+  const requestPairings = async () => {
+    if (!brief.ingredients.length) {
+      setStatus("Choose at least one ingredient first.");
+      return;
+    }
+    setPairingBusy(true);
+    setStatus("");
+    try {
+      const result = await getEpicurePairings(
+        {
+          ingredients: brief.ingredients,
+          vegetarian: brief.vegetarian,
+          plantBased: brief.plantBased,
+        },
+        authToken,
+      );
+      setPairings(result);
+      setStatus(
+        `Epicure mapped ${result.suggestions.length} pairing possibilities.`,
+      );
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "Epicure could not calculate those pairings.",
+      );
+    } finally {
+      setPairingBusy(false);
+    }
+  };
+
+  const requestRecipe = async () => {
+    if (!brief.ingredients.length) {
+      setStatus("Choose at least one ingredient first.");
+      return;
+    }
+    setGenerationBusy(true);
+    setGenerated(null);
+    setWarnings([]);
+    setStatus("Mapping flavour relationships and developing the recipe...");
+    try {
+      const result = await generateAiRecipe(brief, authToken);
+      setGenerated(result.recipe);
+      setPairings(result.pairings);
+      setWarnings(result.warnings);
+      setStatus(
+        `${result.recipe.title} is ready to review before it enters the editor.`,
+      );
+    } catch (error) {
+      setStatus(
+        error instanceof Error
+          ? error.message
+          : "The recipe could not be generated.",
+      );
+    } finally {
+      setGenerationBusy(false);
+    }
   };
 
   return (
@@ -353,32 +308,47 @@ Return ONLY valid JSON. Use this exact shape:
         <div>
           <span>
             <FlaskConical size={14} />
-            Epicure companion
+            Epicure-powered recipe studio
           </span>
-          <h3>Start with flavour, not a blank page.</h3>
+          <h3>Build a dessert from flavour chemistry.</h3>
           <p>
-            Build an ingredient-led brief, explore science-backed pairings in
-            Epicure, then import the finished draft into this editor.
+            Search Epicure's complete ingredient vocabulary, map pairings, then
+            generate an editable recipe with nutrition and an optional image.
           </p>
         </div>
-        <a href={EPICURE_URL} target="_blank" rel="noreferrer">
-          Open Epicure
+        <a href={EPICURE_ABOUT_URL} target="_blank" rel="noreferrer">
+          How Epicure works
           <ExternalLink size={15} />
         </a>
       </header>
+
+      <div className="epicure-provider-strip">
+        {[
+          ["Epicure graph", backendConfigured && (providers?.epicure ?? true)],
+          ["Recipe AI", providers?.recipe ?? false],
+          ["USDA nutrition", providers?.nutrition ?? false],
+          ["Imagen thumbnail", providers?.image ?? false],
+        ].map(([label, ready]) => (
+          <span className={ready ? "is-ready" : ""} key={String(label)}>
+            <i />
+            {String(label)}
+            <small>{ready ? "ready" : "needs key"}</small>
+          </span>
+        ))}
+      </div>
 
       <div className="epicure-lab-grid">
         <section className="epicure-panel epicure-ingredients">
           <div className="epicure-panel-heading">
             <span>01</span>
             <div>
-              <h4>Choose the flavour anchors</h4>
-              <p>Epicure can use these to explore expected and unusual pairings.</p>
+              <h4>Search 1,790 ingredients</h4>
+              <p>Choose the anchors Epicure should build the flavour graph around.</p>
             </div>
           </div>
 
           <div className="epicure-selected">
-            {brief.ingredients.length > 0 ? (
+            {brief.ingredients.length ? (
               brief.ingredients.map((ingredient) => (
                 <button
                   type="button"
@@ -392,88 +362,84 @@ Return ONLY valid JSON. Use this exact shape:
                     }))
                   }
                 >
-                  {ingredient}
+                  {displayName(ingredient)}
                   <X size={12} />
                 </button>
               ))
             ) : (
-              <p>No anchors yet. Chocolate is a very reasonable beginning.</p>
+              <p>No anchors yet. Chocolate remains an excellent life choice.</p>
             )}
           </div>
 
-          <label className="epicure-ingredient-input">
-            <Plus size={15} />
-            <input
-              value={ingredientInput}
-              onChange={(event) => setIngredientInput(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === ",") {
-                  event.preventDefault();
-                  addIngredient(ingredientInput.replace(/,$/, ""));
-                }
-              }}
-              placeholder="Add chocolate, raspberry, miso..."
-            />
-            <button type="button" onClick={() => addIngredient(ingredientInput)}>
-              Add
-            </button>
-          </label>
+          <div className="epicure-catalogue-search">
+            <label className="epicure-ingredient-input">
+              <Search size={15} />
+              <input
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search chocolate, fruit, spice..."
+              />
+            </label>
+            <label>
+              <span className="sr-only">Ingredient category</span>
+              <select
+                value={categoryFilter}
+                onChange={(event) => setCategoryFilter(event.target.value)}
+              >
+                {epicureIngredientCategories.map((category) => (
+                  <option value={category} key={category}>
+                    {category}
+                  </option>
+                ))}
+              </select>
+              <ChevronDown size={14} />
+            </label>
+          </div>
+
+          {searchResults.length > 0 && (
+            <div className="epicure-search-results">
+              {searchResults.map((ingredient) => (
+                <button
+                  type="button"
+                  key={ingredient.id}
+                  onClick={() => addIngredient(ingredient.name)}
+                >
+                  <span>
+                    <strong>{ingredient.label}</strong>
+                    <small>{ingredient.category}</small>
+                  </span>
+                  <span>
+                    {ingredient.vegan ? <Leaf size={12} /> : null}
+                    <Plus size={14} />
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="epicure-suggestions">
             <span>Sweet starting points</span>
             <div>
-              {sweetIngredients.map((ingredient) => (
+              {sweetStartingPoints.map((ingredient) => (
                 <button
                   type="button"
                   key={ingredient}
-                  disabled={brief.ingredients.some(
-                    (item) => item.toLowerCase() === ingredient.toLowerCase(),
-                  )}
+                  disabled={brief.ingredients.includes(ingredient)}
                   onClick={() => addIngredient(ingredient)}
                 >
-                  {ingredient}
+                  {displayName(ingredient)}
                 </button>
               ))}
             </div>
           </div>
 
-          {pairingIdeas.length > 0 && (
-            <div className="epicure-pairing-flight">
-              <span>
-                <Sparkles size={13} />
-                Studio pairing flight
-              </span>
-              <div>
-                {pairingIdeas.map((ingredient) => (
-                  <button
-                    type="button"
-                    key={ingredient}
-                    onClick={() => addIngredient(ingredient)}
-                  >
-                    + {ingredient}
-                  </button>
-                ))}
-              </div>
-              <small>
-                These are local editorial suggestions. Use Epicure for its
-                FlavorGraph-backed recommendations.
-              </small>
-            </div>
-          )}
-
           <div className="epicure-current-deck">
             <button
               type="button"
               onClick={() =>
-                setBrief((current) => ({
-                  ...current,
-                  ingredients: [
-                    ...new Set([
-                      ...current.ingredients,
-                      ...currentIngredients.map(ingredientName).filter(Boolean),
-                    ]),
-                  ],
-                }))
+                currentIngredients.forEach((ingredient) =>
+                  addIngredient(ingredient),
+                )
               }
             >
               <RotateCcw size={14} />
@@ -481,11 +447,8 @@ Return ONLY valid JSON. Use this exact shape:
             </button>
             <button
               type="button"
-              disabled={brief.ingredients.length === 0}
-              onClick={() => {
-                onUseIngredients(brief.ingredients);
-                setStatus("Flavour anchors added to the ingredient deck.");
-              }}
+              disabled={!brief.ingredients.length}
+              onClick={() => onUseIngredients(brief.ingredients.map(displayName))}
             >
               <ArrowUpRight size={14} />
               Add anchors to recipe
@@ -498,7 +461,7 @@ Return ONLY valid JSON. Use this exact shape:
             <span>02</span>
             <div>
               <h4>Direct the recipe</h4>
-              <p>The useful constraints from Epicure's generation wizard.</p>
+              <p>Give the model enough constraint to produce something bakeable.</p>
             </div>
           </div>
 
@@ -552,6 +515,7 @@ Return ONLY valid JSON. Use this exact shape:
               <input
                 type="number"
                 min="1"
+                max="40"
                 value={brief.servings}
                 onChange={(event) =>
                   setBrief((current) => ({
@@ -571,7 +535,7 @@ Return ONLY valid JSON. Use this exact shape:
                     cuisine: event.target.value,
                   }))
                 }
-                placeholder="Palestinian, French, Japanese..."
+                placeholder="Levantine, French, Japanese..."
               />
             </label>
           </div>
@@ -618,75 +582,231 @@ Return ONLY valid JSON. Use this exact shape:
                   specialRequests: event.target.value,
                 }))
               }
-              placeholder="One bowl, not too sweet, dramatic finish, pantry-friendly..."
+              placeholder="One bowl, not too sweet, pantry-friendly, dramatic finish..."
             />
           </label>
+
+          <button
+            type="button"
+            className={`epicure-image-toggle ${
+              brief.generateImage ? "is-active" : ""
+            }`}
+            onClick={() =>
+              setBrief((current) => ({
+                ...current,
+                generateImage: !current.generateImage,
+              }))
+            }
+          >
+            <ImageIcon size={16} />
+            <span>
+              <strong>Generate an editorial thumbnail</strong>
+              <small>Google Imagen 4, uploaded to your Vercel Blob store</small>
+            </span>
+            <i />
+          </button>
         </section>
 
-        <section className="epicure-panel epicure-bridge">
+        <section className="epicure-panel epicure-pairing-panel">
           <div className="epicure-panel-heading">
             <span>03</span>
             <div>
-              <h4>Take the brief to Epicure</h4>
-              <p>Nothing leaves Studio until you choose to copy or open it.</p>
+              <h4>Map the flavour graph</h4>
+              <p>Find bridges and nearby ingredients before committing to a recipe.</p>
             </div>
           </div>
-          <textarea value={prompt} readOnly rows={15} aria-label="Epicure recipe brief" />
-          <div className="epicure-bridge-actions">
-            <button type="button" onClick={() => copyText(prompt, "brief")}>
-              {copied === "brief" ? <Check size={15} /> : <Clipboard size={15} />}
-              {copied === "brief" ? "Brief copied" : "Copy generation brief"}
-            </button>
-            <a href={EPICURE_URL} target="_blank" rel="noreferrer">
-              <WandSparkles size={15} />
-              Explore pairings
-              <ArrowUpRight size={14} />
-            </a>
-            <button
-              type="button"
-              onClick={() => copyText(EPICURE_MCP_URL, "connector")}
-            >
-              {copied === "connector" ? <Check size={15} /> : <Link2 size={15} />}
-              {copied === "connector" ? "Connector copied" : "Copy MCP connector"}
-            </button>
-          </div>
-          <small className="epicure-privacy-note">
-            Epicure uses Google AI services for generation and image analysis.
-            Review its privacy notice before pasting unpublished recipes.
-          </small>
+          <button
+            type="button"
+            className="epicure-pairing-button"
+            disabled={
+              !brief.ingredients.length || pairingBusy || !backendConfigured
+            }
+            onClick={requestPairings}
+          >
+            {pairingBusy ? (
+              <LoaderCircle className="is-spinning" size={17} />
+            ) : (
+              <Sparkles size={17} />
+            )}
+            {pairingBusy ? "Mapping pairings..." : "Find science-backed pairings"}
+          </button>
+
+          {pairings ? (
+            <div className="epicure-live-pairings">
+              {pairings.bridges.length > 0 && (
+                <div>
+                  <span>Bridge ingredients</span>
+                  <div className="epicure-pairing-flight">
+                    <div>
+                      {pairings.bridges.slice(0, 8).map((bridge) => (
+                        <button
+                          type="button"
+                          key={bridge.name}
+                          onClick={() => addIngredient(bridge.name)}
+                        >
+                          + {displayName(bridge.name)}
+                          <small>{bridge.coverage}</small>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+              {pairings.clusters.slice(0, 3).map((cluster) => (
+                <div className="epicure-cluster" key={cluster.id}>
+                  <span>{cluster.label}</span>
+                  <div>
+                    {cluster.ingredients.slice(0, 6).map((ingredient) => (
+                      <button
+                        type="button"
+                        key={ingredient.name}
+                        onClick={() => addIngredient(ingredient.name)}
+                      >
+                        {displayName(ingredient.name)}
+                        <small>{Math.round(ingredient.score * 100)}%</small>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="epicure-empty-graph">
+              <FlaskConical size={25} />
+              <p>Your pairing map will appear here.</p>
+              <small>
+                Powered by Epicure's public, read-only ingredient embedding.
+              </small>
+            </div>
+          )}
         </section>
 
-        <section className="epicure-panel epicure-import">
+        <section className="epicure-panel epicure-generate">
           <div className="epicure-panel-heading">
             <span>04</span>
             <div>
-              <h4>Import the generated draft</h4>
-              <p>Paste the JSON response and Studio will fill every matching field.</p>
+              <h4>Generate and review</h4>
+              <p>The result stays editable and never publishes automatically.</p>
             </div>
           </div>
-          <label>
-            <span>Epicure JSON</span>
+
+          {!generated ? (
+            <div className="epicure-generation-launch">
+              <WandSparkles size={30} />
+              <h5>Turn this graph into a complete recipe.</h5>
+              <p>
+                DeepSeek writes the draft, USDA calculates nutrition when
+                available, and Imagen can plate the thumbnail.
+              </p>
+              <button
+                type="button"
+                disabled={
+                  !brief.ingredients.length ||
+                  generationBusy ||
+                  !backendConfigured
+                }
+                onClick={requestRecipe}
+              >
+                {generationBusy ? (
+                  <LoaderCircle className="is-spinning" size={17} />
+                ) : (
+                  <WandSparkles size={17} />
+                )}
+                {generationBusy ? "Developing recipe..." : "Generate recipe"}
+              </button>
+            </div>
+          ) : (
+            <article className="epicure-generated-card">
+              {generated.image ? (
+                <img src={generated.image} alt="" />
+              ) : (
+                <div className="epicure-generated-placeholder">
+                  <ImageIcon size={26} />
+                  <span>Thumbnail was not generated</span>
+                </div>
+              )}
+              <div className="epicure-generated-copy">
+                <span>
+                  {generated.category} · {generated.time} min ·{" "}
+                  {generated.difficulty}
+                </span>
+                <h5>{generated.title}</h5>
+                <p>{generated.subtitle}</p>
+                <div className="epicure-nutrition-grid">
+                  <span>
+                    <strong>{generated.nutrition.calories}</strong> kcal
+                  </span>
+                  <span>
+                    <strong>{generated.nutrition.protein}g</strong> protein
+                  </span>
+                  <span>
+                    <strong>{generated.nutrition.carbohydrates}g</strong> carbs
+                  </span>
+                  <span>
+                    <strong>{generated.nutrition.fat}g</strong> fat
+                  </span>
+                </div>
+                <small>
+                  Per serving · {generated.nutrition.source}
+                  {generated.nutrition.coverage
+                    ? ` · ${generated.nutrition.coverage}`
+                    : ""}
+                </small>
+              </div>
+              <div className="epicure-generated-actions">
+                <button
+                  type="button"
+                  onClick={() => {
+                    onApplyDraft(generated);
+                    setStatus(
+                      `${generated.title} is now in the editor. Review before publishing.`,
+                    );
+                  }}
+                >
+                  <Check size={16} />
+                  Use this recipe
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setGenerated(null);
+                    void requestRecipe();
+                  }}
+                >
+                  <RotateCcw size={15} />
+                  Regenerate
+                </button>
+              </div>
+            </article>
+          )}
+
+          {warnings.map((warning) => (
+            <p className="epicure-warning" key={warning}>
+              <CircleAlert size={14} />
+              {warning}
+            </p>
+          ))}
+          {status && <p className="epicure-status">{status}</p>}
+
+          <details className="epicure-import">
+            <summary>Manual JSON fallback</summary>
+            <p>
+              Use this only when a provider is unavailable or you already have a
+              compatible recipe draft.
+            </p>
             <textarea
-              rows={15}
-              value={importText}
-              onChange={(event) => {
-                setImportText(event.target.value);
-                setStatus("");
-              }}
+              rows={7}
+              value={fallbackJson}
+              onChange={(event) => setFallbackJson(event.target.value)}
               placeholder='{"title":"Midnight tahini cake","ingredients":["..."],"steps":[{"text":"..."}]}'
             />
-          </label>
-          <div className="epicure-import-actions">
             <button
               type="button"
-              disabled={!importText.trim()}
+              disabled={!fallbackJson.trim()}
               onClick={() => {
                 try {
-                  const draft = parseEpicureDraft(importText);
-                  onApplyDraft(draft);
-                  setStatus(
-                    `${draft.title} is now in the Studio. Review it before publishing.`,
-                  );
+                  onApplyDraft(parseFallbackDraft(fallbackJson));
+                  setStatus("The manual draft is now in the editor.");
                 } catch (error) {
                   setStatus(
                     error instanceof Error
@@ -696,13 +816,19 @@ Return ONLY valid JSON. Use this exact shape:
                 }
               }}
             >
-              <Copy size={15} />
-              Apply draft to recipe
+              Apply manual draft
             </button>
-          </div>
-          {status && <p className="epicure-status">{status}</p>}
+          </details>
         </section>
       </div>
+
+      <footer className="epicure-attribution">
+        Ingredient vocabulary and pairing intelligence from{" "}
+        <a href={EPICURE_URL} target="_blank" rel="noreferrer">
+          Epicure by KAIKAKU
+        </a>
+        . Recipe generation is an independent Loco for Cocoa integration.
+      </footer>
     </motion.section>
   );
 }

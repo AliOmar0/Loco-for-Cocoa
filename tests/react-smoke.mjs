@@ -492,12 +492,18 @@ const epicureSummary = await evaluate(`({
   panels: document.querySelectorAll(".epicure-panel").length,
   ingredientSuggestions: document.querySelectorAll(".epicure-suggestions button").length,
   externalUrl: document.querySelector(".epicure-lab-hero a")?.href,
+  ingredientSearch: Boolean(document.querySelector(".epicure-catalogue-search input")),
+  providerStatuses: document.querySelectorAll(".epicure-provider-strip > span").length,
+  generator: Boolean(document.querySelector(".epicure-generation-launch > button")),
   importer: Boolean(document.querySelector(".epicure-import textarea"))
 })`);
 if (
   epicureSummary.panels !== 4 ||
   epicureSummary.ingredientSuggestions < 8 ||
-  epicureSummary.externalUrl !== "https://epicure.kaikaku.ai/" ||
+  epicureSummary.externalUrl !== "https://epicure.kaikaku.ai/about" ||
+  !epicureSummary.ingredientSearch ||
+  epicureSummary.providerStatuses !== 4 ||
+  !epicureSummary.generator ||
   !epicureSummary.importer
 ) {
   throw new Error(`Epicure Lab did not initialize: ${JSON.stringify(epicureSummary)}`);

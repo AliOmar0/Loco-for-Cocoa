@@ -14,6 +14,20 @@ export type RecipeStep = {
   duration?: number;
 };
 
+export type NutritionInfo = {
+  calories: number;
+  protein: number;
+  carbohydrates: number;
+  fat: number;
+  sugar: number;
+  fiber: number;
+  sodium: number;
+  source: "USDA FoodData Central" | "AI estimate";
+  basis: "per serving";
+  coverage?: string;
+  disclaimer: string;
+};
+
 export type ImageFocus = {
   x: number;
   y: number;
@@ -49,6 +63,7 @@ export type Recipe = {
   imageFocus?: ImageFocus;
   ingredients: string[];
   dietary?: DietaryTag[];
+  nutrition?: NutritionInfo;
   substitutions?: IngredientSubstitution[];
   steps: RecipeStep[];
   notes: string;

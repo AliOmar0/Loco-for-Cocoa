@@ -7,7 +7,7 @@
   "devCommand": "npm run dev",
   "functions": {
     "api/**/*.ts": {
-      "maxDuration": 15
+      "maxDuration": 60
     }
   },
   "rewrites": [

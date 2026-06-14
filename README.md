@@ -133,10 +133,12 @@ After the first deployment:
    ALLOWED_ORIGINS=https://aliomar0.github.io,http://127.0.0.1:5173
    ```
 
-6. Redeploy the Vercel project so all variables are available to the Functions.
-7. Visit `https://your-project.vercel.app/api/health`. Every service should be
+6. To enable the full Epicure Lab, add the private provider variables described
+   in **Epicure Lab providers** below.
+7. Redeploy the Vercel project so all variables are available to the Functions.
+8. Visit `https://your-project.vercel.app/api/health`. Every service should be
    `true`.
-8. Sign into `/studio` on the Vercel deployment. The first archive request
+9. Sign into `/studio` on the Vercel deployment. The first archive request
    creates the database tables automatically.
 
 The Vercel-hosted frontend automatically connects to its same-origin API. Keep
@@ -180,6 +182,15 @@ POST /api/archive/sync
   body: { recipes, collections }
   header: Authorization: Bearer <token>
   returns: { recipes, collections, version, updatedAt, initialized }
+
+GET /api/ai/status
+  authenticated provider-readiness check
+
+POST /api/ai/pairings
+  authenticated Epicure FlavorGraph pairing search
+
+POST /api/ai/recipe
+  authenticated recipe, nutrition, and thumbnail generation
 ```
 
 The API already handles CORS for the GitHub Pages production origin, local
@@ -198,6 +209,46 @@ OWNER_EMAIL=your-owner-email
 OWNER_NAME=Ali
 OWNER_PASSWORD_HASH=an-argon2id-password-hash
 ```
+
+### Epicure Lab providers
+
+The Studio includes Epicure's official 1,790-ingredient vocabulary and calls its
+public FlavorGraph MCP for pairing intelligence. The public Epicure service is
+read-only and does not expose Epicure's private Gemini/Imagen recipe-generation
+pipeline, so Loco for Cocoa uses separate providers for the rest:
+
+- DeepSeek V4 Pro returns a structured, editable recipe draft.
+- USDA FoodData Central calculates nutrition from approximate gram weights.
+- Google Imagen 4 creates the editorial recipe thumbnail.
+- Vercel Blob stores the generated image with the rest of the recipe media.
+
+Add these variables in **Vercel → Project Settings → Environment Variables**:
+
+```env
+EPICURE_MCP_URL=https://epicure-mcp.kaikaku.ai/mcp
+DEEPSEEK_API_KEY=your-deepseek-api-key
+DEEPSEEK_MODEL=deepseek-v4-pro
+USDA_API_KEY=your-fooddata-central-api-key
+GEMINI_API_KEY=your-google-ai-studio-api-key
+```
+
+`BLOB_READ_WRITE_TOKEN` is also required for generated thumbnails and is
+normally supplied when the Blob store is connected. Set every private variable
+for Production, Preview, and Development, then redeploy.
+
+The Lab remains useful with partial configuration:
+
+- Without `USDA_API_KEY`, nutrition is clearly labeled **AI estimate**.
+- Without `GEMINI_API_KEY` or Blob, the recipe is generated without a thumbnail.
+- Without `DEEPSEEK_API_KEY`, ingredient search and pairings work, but recipe
+  generation is disabled by the API.
+
+Generated recipes should still be reviewed before publishing. USDA values are
+based on ingredient-name matching and approximate weights; they are not medical
+or allergen advice.
+
+The vendored Epicure ingredient list remains under its upstream MIT license;
+see `src/data/EPICURE_LICENSE.txt`.
 
 ## Production
 
