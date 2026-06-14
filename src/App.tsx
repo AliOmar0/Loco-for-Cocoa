@@ -9,11 +9,35 @@ import { NotFoundPage } from "./pages/NotFoundPage";
 import { RecipePage } from "./pages/RecipePage";
 import { useRecipeStore } from "./store/useRecipeStore";
 
-const StudioPage = lazy(() =>
-  import("./pages/StudioPage").then((module) => ({
-    default: module.StudioPage,
-  })),
-);
+const studioReloadKey = "loco-studio-chunk-recovery";
+
+const StudioPage = lazy(async () => {
+  try {
+    const module = await import("./pages/StudioPage");
+    sessionStorage.removeItem(studioReloadKey);
+    return { default: module.StudioPage };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const isStaleChunk =
+      message.includes("Failed to fetch dynamically imported module") ||
+      message.includes("Importing a module script failed") ||
+      message.includes("Loading chunk");
+
+    if (isStaleChunk && !sessionStorage.getItem(studioReloadKey)) {
+      sessionStorage.setItem(studioReloadKey, "1");
+      const registrations =
+        "serviceWorker" in navigator
+          ? await navigator.serviceWorker.getRegistrations()
+          : [];
+      await Promise.all(registrations.map((registration) => registration.unregister()));
+      window.location.reload();
+      return new Promise<never>(() => undefined);
+    }
+
+    sessionStorage.removeItem(studioReloadKey);
+    throw error;
+  }
+});
 
 export default function App() {
   const [archiveReady, setArchiveReady] = useState(!backendConfigured);
