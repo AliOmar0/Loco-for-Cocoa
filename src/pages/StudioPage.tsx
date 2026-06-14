@@ -50,6 +50,10 @@ import type {
   RecipeMood,
 } from "../types";
 import { RecipeImage } from "../components/RecipeImage";
+import {
+  EpicureLab,
+  type EpicureDraft,
+} from "../components/EpicureLab";
 import { StudioCollections } from "../components/StudioCollections";
 
 const recipeSchema = z.object({
@@ -172,7 +176,7 @@ function RecipeEditor({
   const revisionMap = useRecipeStore((state) => state.revisions);
   const revisions = recipe ? revisionMap[recipe.id] || EMPTY_REVISIONS : EMPTY_REVISIONS;
   const [tab, setTab] = useState<
-    "content" | "method" | "preview" | "history"
+    "content" | "epicure" | "method" | "preview" | "history"
   >("content");
   const [saved, setSaved] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -280,6 +284,60 @@ function RecipeEditor({
       100,
   );
 
+  const markField = {
+    shouldDirty: true,
+    shouldTouch: true,
+    shouldValidate: false,
+  } as const;
+
+  const applyEpicureDraft = (draft: EpicureDraft) => {
+    setValue("title", draft.title, markField);
+    if (draft.subtitle) setValue("subtitle", draft.subtitle, markField);
+    if (draft.description) {
+      setValue("description", draft.description, markField);
+    }
+    if (draft.category) setValue("category", draft.category, markField);
+    if (draft.mood) setValue("mood", draft.mood, markField);
+    if (draft.time) setValue("time", draft.time, markField);
+    if (draft.difficulty) {
+      setValue("difficulty", draft.difficulty, markField);
+    }
+    if (draft.servings) setValue("servings", draft.servings, markField);
+    if (draft.realisticYield) {
+      setValue("realisticYield", draft.realisticYield, markField);
+    }
+    if (draft.kitchenMess) {
+      setValue("kitchenMess", draft.kitchenMess, markField);
+    }
+    if (draft.dietary?.length) {
+      setValue("dietary", draft.dietary, markField);
+    }
+    if (draft.notes) setValue("notes", draft.notes, markField);
+    ingredientFields.replace(
+      draft.ingredients.map((value) => ({ value })),
+    );
+    stepFields.replace(draft.steps.map((step) => ({ ...step })));
+    setAutosaveState("Epicure draft applied");
+    setTab("content");
+  };
+
+  const addEpicureIngredients = (ingredients: string[]) => {
+    const current = values.ingredients
+      .map((item) => item.value.trim())
+      .filter(Boolean);
+    const additions = ingredients.filter(
+      (ingredient) =>
+        !current.some((item) =>
+          item.toLowerCase().includes(ingredient.toLowerCase()),
+        ),
+    );
+    ingredientFields.replace(
+      [...current, ...additions].map((value) => ({ value })),
+    );
+    setAutosaveState("Flavour anchors added");
+    setTab("method");
+  };
+
   const submit = handleSubmit((data) => {
     const now = new Date().toISOString();
     const id = recipe?.id || `${slugify(data.title)}-${Date.now().toString().slice(-4)}`;
@@ -349,6 +407,14 @@ function RecipeEditor({
         >
           <FileText size={15} />
           Story
+        </button>
+        <button
+          type="button"
+          className={tab === "epicure" ? "is-active" : ""}
+          onClick={() => setTab("epicure")}
+        >
+          <Sparkles size={15} />
+          Epicure Lab
         </button>
         <button
           type="button"
@@ -678,6 +744,20 @@ function RecipeEditor({
               </div>
             </section>
           </motion.div>
+        )}
+
+        {tab === "epicure" && (
+          <EpicureLab
+            key="epicure"
+            storageKey={`loco-epicure-brief-${recipe?.id || "new"}`}
+            currentIngredients={values.ingredients.map((item) => item.value)}
+            initialCategory={values.category}
+            initialDifficulty={values.difficulty}
+            initialServings={values.servings}
+            initialDietary={values.dietary}
+            onApplyDraft={applyEpicureDraft}
+            onUseIngredients={addEpicureIngredients}
+          />
         )}
 
         {tab === "method" && (

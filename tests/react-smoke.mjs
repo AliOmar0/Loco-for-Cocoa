@@ -487,6 +487,22 @@ await waitFor(
   `document.querySelector(".editor-topbar h2").textContent.includes("Untitled")`,
 );
 await evaluate(`document.querySelectorAll(".editor-tabs button")[1].click()`);
+await waitFor(`Boolean(document.querySelector(".epicure-lab"))`);
+const epicureSummary = await evaluate(`({
+  panels: document.querySelectorAll(".epicure-panel").length,
+  ingredientSuggestions: document.querySelectorAll(".epicure-suggestions button").length,
+  externalUrl: document.querySelector(".epicure-lab-hero a")?.href,
+  importer: Boolean(document.querySelector(".epicure-import textarea"))
+})`);
+if (
+  epicureSummary.panels !== 4 ||
+  epicureSummary.ingredientSuggestions < 8 ||
+  epicureSummary.externalUrl !== "https://epicure.kaikaku.ai/" ||
+  !epicureSummary.importer
+) {
+  throw new Error(`Epicure Lab did not initialize: ${JSON.stringify(epicureSummary)}`);
+}
+await evaluate(`document.querySelectorAll(".editor-tabs button")[2].click()`);
 await waitFor(`Boolean(document.querySelector(".field-array"))`);
 await capture("react-studio-desktop.png");
 
@@ -499,6 +515,7 @@ console.log(
       servingControl: { initialServing, updatedServing },
       mobileSummary,
       studioSummary,
+      epicureSummary,
     },
     null,
     2,

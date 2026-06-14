@@ -7581,3 +7581,549 @@ html[data-visual-intensity="reduced"] .art-chip {
     min-height: 560px;
   }
 }
+
+/* Epicure-assisted recipe creation */
+
+.epicure-lab {
+  background:
+    radial-gradient(circle at 8% 2%, rgba(240, 166, 178, 0.2), transparent 24%),
+    #f8f1e8;
+}
+
+.epicure-lab-hero {
+  display: flex;
+  min-height: 240px;
+  padding: clamp(24px, 4vw, 48px);
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 28px;
+  overflow: hidden;
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 84% 24%, rgba(240, 166, 178, 0.32), transparent 26%),
+    linear-gradient(135deg, #160806, #431711 65%, #6b2733);
+  color: white;
+}
+
+.epicure-lab-hero > div {
+  max-width: 720px;
+}
+
+.epicure-lab-hero > div > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--butter);
+  font-family: var(--mono);
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.epicure-lab-hero h3 {
+  max-width: 680px;
+  margin: 15px 0 10px;
+  font-family: var(--display);
+  font-size: clamp(44px, 6vw, 82px);
+  font-weight: 400;
+  letter-spacing: -0.06em;
+  line-height: 0.9;
+}
+
+.epicure-lab-hero p {
+  max-width: 590px;
+  margin: 0;
+  color: rgba(255, 255, 255, 0.64);
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.epicure-lab-hero > a {
+  display: inline-flex;
+  min-height: 46px;
+  padding: 0 16px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+  font-size: 8px;
+  font-weight: 700;
+  backdrop-filter: blur(12px);
+}
+
+.epicure-lab-grid {
+  display: grid;
+  margin-top: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.epicure-panel {
+  min-width: 0;
+  padding: clamp(18px, 2.4vw, 28px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--paper);
+}
+
+.epicure-panel-heading {
+  display: grid;
+  margin-bottom: 22px;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+}
+
+.epicure-panel-heading > span {
+  display: grid;
+  width: 32px;
+  height: 32px;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--pink);
+  font-family: var(--mono);
+  font-size: 7px;
+}
+
+.epicure-panel-heading h4 {
+  margin: 0 0 3px;
+  font-family: var(--display);
+  font-size: 25px;
+  font-weight: 500;
+  letter-spacing: -0.035em;
+}
+
+.epicure-panel-heading p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+.epicure-selected {
+  display: flex;
+  min-height: 54px;
+  padding: 9px;
+  flex-wrap: wrap;
+  align-content: center;
+  gap: 6px;
+  border: 1px dashed rgba(45, 18, 12, 0.22);
+  border-radius: 14px;
+  background: var(--cream);
+}
+
+.epicure-selected > p {
+  margin: auto 4px;
+  color: var(--ink-soft);
+  font-size: 8px;
+}
+
+.epicure-selected button {
+  display: inline-flex;
+  min-height: 31px;
+  padding: 0 9px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(216, 50, 82, 0.22);
+  border-radius: 999px;
+  background: rgba(240, 166, 178, 0.2);
+  color: var(--cherry);
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.epicure-ingredient-input {
+  display: grid;
+  min-height: 46px;
+  margin-top: 10px;
+  padding: 0 7px 0 13px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: white;
+}
+
+.epicure-ingredient-input input {
+  min-width: 0;
+  height: 44px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font-size: 9px;
+}
+
+.epicure-ingredient-input > button {
+  min-height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-radius: 9px;
+  background: var(--cocoa);
+  color: white;
+  font-size: 7px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.epicure-suggestions,
+.epicure-pairing-flight {
+  margin-top: 18px;
+}
+
+.epicure-suggestions > span,
+.epicure-pairing-flight > span,
+.epicure-panel fieldset > legend,
+.epicure-brief-fields label > span,
+.epicure-special-request > span,
+.epicure-import label > span {
+  display: flex;
+  margin-bottom: 8px;
+  align-items: center;
+  gap: 6px;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 7px;
+  text-transform: uppercase;
+}
+
+.epicure-suggestions > div,
+.epicure-pairing-flight > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.epicure-suggestions button,
+.epicure-pairing-flight button {
+  min-height: 29px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 7px;
+  cursor: pointer;
+}
+
+.epicure-suggestions button:disabled {
+  opacity: 0.36;
+  cursor: default;
+}
+
+.epicure-pairing-flight {
+  padding: 14px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, rgba(240, 166, 178, 0.17), var(--cream));
+}
+
+.epicure-pairing-flight > span {
+  color: var(--cherry);
+}
+
+.epicure-pairing-flight small {
+  display: block;
+  margin-top: 10px;
+  color: var(--ink-soft);
+  font-size: 7px;
+  line-height: 1.5;
+}
+
+.epicure-current-deck {
+  display: flex;
+  margin-top: 18px;
+  gap: 7px;
+}
+
+.epicure-current-deck button,
+.epicure-bridge-actions button,
+.epicure-bridge-actions a,
+.epicure-import-actions button {
+  display: inline-flex;
+  min-height: 40px;
+  padding: 0 12px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 7px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.epicure-current-deck button:last-child,
+.epicure-import-actions button {
+  border-color: var(--cherry);
+  background: var(--cherry);
+  color: white;
+}
+
+.epicure-current-deck button:disabled,
+.epicure-import-actions button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.epicure-panel fieldset {
+  min-width: 0;
+  margin: 0 0 20px;
+  padding: 0;
+  border: 0;
+}
+
+.epicure-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.epicure-choice-grid button {
+  display: grid;
+  min-height: 74px;
+  padding: 12px;
+  align-content: center;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--cream);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.epicure-choice-grid button.is-active {
+  border-color: var(--cherry);
+  background: linear-gradient(135deg, rgba(240, 166, 178, 0.28), var(--paper));
+  box-shadow: inset 0 0 0 1px rgba(216, 50, 82, 0.12);
+}
+
+.epicure-choice-grid strong {
+  font-family: var(--display);
+  font-size: 20px;
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.epicure-choice-grid small {
+  color: var(--ink-soft);
+  font-size: 7px;
+}
+
+.epicure-complexity {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.epicure-complexity button {
+  min-height: 38px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: transparent;
+  font-size: 8px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.epicure-complexity button.is-active {
+  border-color: var(--cocoa);
+  background: var(--cocoa);
+  color: white;
+}
+
+.epicure-brief-fields {
+  display: grid;
+  grid-template-columns: 0.55fr 1.45fr;
+  gap: 8px;
+}
+
+.epicure-brief-fields label,
+.epicure-special-request,
+.epicure-import label {
+  display: grid;
+}
+
+.epicure-brief-fields input,
+.epicure-special-request textarea,
+.epicure-import textarea,
+.epicure-bridge > textarea {
+  width: 100%;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  outline: 0;
+  background: white;
+  color: var(--ink);
+  font-size: 8px;
+}
+
+.epicure-brief-fields input {
+  height: 43px;
+  padding: 0 11px;
+}
+
+.epicure-special-request {
+  margin-top: 18px;
+}
+
+.epicure-special-request textarea,
+.epicure-import textarea,
+.epicure-bridge > textarea {
+  padding: 12px;
+  line-height: 1.6;
+  resize: vertical;
+}
+
+.epicure-diet-modes {
+  display: grid;
+  margin-top: 14px;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.epicure-diet-modes button {
+  display: flex;
+  min-height: 42px;
+  padding: 0 11px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--paper);
+  color: var(--ink);
+  font-size: 8px;
+  cursor: pointer;
+}
+
+.epicure-diet-modes button svg:last-child {
+  margin-left: auto;
+}
+
+.epicure-diet-modes button.is-active {
+  border-color: #709268;
+  background: rgba(174, 187, 160, 0.22);
+  color: #31512d;
+}
+
+.epicure-bridge {
+  background:
+    radial-gradient(circle at 92% 10%, rgba(240, 166, 178, 0.2), transparent 28%),
+    var(--cocoa-2);
+  color: white;
+}
+
+.epicure-bridge .epicure-panel-heading p {
+  color: rgba(255, 255, 255, 0.52);
+}
+
+.epicure-bridge > textarea {
+  border-color: rgba(255, 255, 255, 0.13);
+  background: rgba(255, 255, 255, 0.07);
+  color: rgba(255, 255, 255, 0.78);
+  font-family: var(--mono);
+  font-size: 7px;
+}
+
+.epicure-bridge-actions {
+  display: flex;
+  margin-top: 10px;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.epicure-bridge-actions button,
+.epicure-bridge-actions a {
+  border-color: rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.epicure-bridge-actions a {
+  background: var(--cherry);
+}
+
+.epicure-privacy-note {
+  display: block;
+  margin-top: 12px;
+  color: rgba(255, 255, 255, 0.42);
+  font-size: 7px;
+  line-height: 1.55;
+}
+
+.epicure-import {
+  background: linear-gradient(145deg, var(--paper), #f8e4e3);
+}
+
+.epicure-import-actions {
+  display: flex;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+
+.epicure-status {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid rgba(216, 50, 82, 0.18);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--cherry);
+  font-size: 8px;
+  line-height: 1.5;
+}
+
+@media (max-width: 1180px) {
+  .epicure-lab-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .epicure-lab {
+    padding: 10px;
+  }
+
+  .epicure-lab-hero {
+    min-height: 320px;
+    padding: 24px 20px;
+    align-items: flex-start;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .epicure-lab-hero h3 {
+    font-size: 48px;
+  }
+
+  .epicure-lab-hero > a {
+    width: 100%;
+  }
+
+  .epicure-panel {
+    padding: 17px 14px;
+  }
+
+  .epicure-choice-grid,
+  .epicure-brief-fields,
+  .epicure-diet-modes {
+    grid-template-columns: 1fr;
+  }
+
+  .epicure-current-deck,
+  .epicure-bridge-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .epicure-current-deck button,
+  .epicure-bridge-actions button,
+  .epicure-bridge-actions a,
+  .epicure-import-actions button {
+    width: 100%;
+  }
+}
