@@ -206,15 +206,15 @@ export type NutritionResult = NutritionValues & {
   disclaimer: string;
 };
 
-function roundNutrition(values: NutritionValues): NutritionValues {
+function roundNutrition(values: Partial<NutritionValues>): NutritionValues {
   return {
-    calories: Math.round(values.calories),
-    protein: Math.round(values.protein * 10) / 10,
-    carbohydrates: Math.round(values.carbohydrates * 10) / 10,
-    fat: Math.round(values.fat * 10) / 10,
-    sugar: Math.round(values.sugar * 10) / 10,
-    fiber: Math.round(values.fiber * 10) / 10,
-    sodium: Math.round(values.sodium),
+    calories: Math.round(values.calories ?? 0),
+    protein: Math.round((values.protein ?? 0) * 10) / 10,
+    carbohydrates: Math.round((values.carbohydrates ?? 0) * 10) / 10,
+    fat: Math.round((values.fat ?? 0) * 10) / 10,
+    sugar: Math.round((values.sugar ?? 0) * 10) / 10,
+    fiber: Math.round((values.fiber ?? 0) * 10) / 10,
+    sodium: Math.round(values.sodium ?? 0),
   };
 }
 
@@ -1009,7 +1009,7 @@ export async function generateRecipePackage(
             code:
               error instanceof RecipeAiError
                 ? error.code
-                : "IMAGEN_UNKNOWN_ERROR",
+                : "IMAGE_UNKNOWN_ERROR",
           }))
       : Promise.resolve({
           image: "",
