@@ -13,13 +13,28 @@ export default {
 
     try {
       await requireOwner(request);
+      const missingRecipe = process.env.DEEPSEEK_API_KEY
+        ? []
+        : ["DEEPSEEK_API_KEY"];
+      const missingNutrition = process.env.USDA_API_KEY
+        ? []
+        : ["USDA_API_KEY"];
+      const missingImage = [
+        ...(!process.env.GEMINI_API_KEY ? ["GEMINI_API_KEY"] : []),
+        ...(!process.env.BLOB_READ_WRITE_TOKEN
+          ? ["BLOB_READ_WRITE_TOKEN"]
+          : []),
+      ];
       return json(request, {
         epicure: true,
-        recipe: Boolean(process.env.DEEPSEEK_API_KEY),
-        nutrition: Boolean(process.env.USDA_API_KEY),
-        image: Boolean(
-          process.env.GEMINI_API_KEY && process.env.BLOB_READ_WRITE_TOKEN,
-        ),
+        recipe: missingRecipe.length === 0,
+        nutrition: missingNutrition.length === 0,
+        image: missingImage.length === 0,
+        missing: {
+          recipe: missingRecipe,
+          nutrition: missingNutrition,
+          image: missingImage,
+        },
         models: {
           recipe: process.env.DEEPSEEK_MODEL?.trim() || "deepseek-v4-pro",
           image: "imagen-4.0-generate-001",

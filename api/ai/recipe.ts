@@ -5,9 +5,13 @@ import {
   preflight,
   publicError,
 } from "../../server/cors.js";
-import { findEpicurePairings } from "../../server/epicure.js";
+import {
+  findEpicurePairings,
+  type EpicurePairings,
+} from "../../server/epicure.js";
 import {
   generateRecipePackage,
+  RecipeAiError,
   recipeGenerationRequestSchema,
 } from "../../server/recipe-ai.js";
 
@@ -19,11 +23,25 @@ export default {
     try {
       await requireOwner(request);
       const parsed = recipeGenerationRequestSchema.parse(await request.json());
-      const pairings = await findEpicurePairings(parsed.ingredients, {
-        vegetarian: parsed.vegetarian,
-        vegan: parsed.plantBased,
-      });
+      let pairingWarning = "";
+      let pairings: EpicurePairings;
+      try {
+        pairings = await findEpicurePairings(parsed.ingredients, {
+          vegetarian: parsed.vegetarian,
+          vegan: parsed.plantBased,
+        });
+      } catch {
+        pairingWarning =
+          "Epicure's live pairing graph was temporarily unavailable, so the recipe used your selected ingredients directly.";
+        pairings = {
+          raw: "No live pairing graph was available. Develop the recipe from the selected ingredients and constraints.",
+          clusters: [],
+          bridges: [],
+          suggestions: [],
+        };
+      }
       const generated = await generateRecipePackage(parsed, pairings);
+      if (pairingWarning) generated.warnings.unshift(pairingWarning);
       return json(request, generated);
     } catch (error) {
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
@@ -39,8 +57,14 @@ export default {
           503,
         );
       }
+      if (error instanceof RecipeAiError) {
+        return json(
+          request,
+          { error: error.message, code: error.code },
+          error.status,
+        );
+      }
       return publicError(request, error);
     }
   },
 };
-

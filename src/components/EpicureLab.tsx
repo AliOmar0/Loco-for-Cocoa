@@ -8,15 +8,17 @@ import {
   Image as ImageIcon,
   Leaf,
   LoaderCircle,
+  Network,
   Plus,
   RotateCcw,
   Search,
+  SlidersHorizontal,
   Sparkles,
   WandSparkles,
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   epicureIngredientCategories,
   epicureIngredients,
@@ -188,6 +190,7 @@ export function EpicureLab({
   const [generationBusy, setGenerationBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [fallbackJson, setFallbackJson] = useState("");
+  const labGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(brief));
@@ -199,6 +202,48 @@ export function EpicureLab({
       .then(setProviders)
       .catch(() => setProviders(null));
   }, [authToken]);
+
+  useEffect(() => {
+    if (providers && !providers.image && brief.generateImage) {
+      setBrief((current) => ({ ...current, generateImage: false }));
+    }
+  }, [brief.generateImage, providers]);
+
+  useLayoutEffect(() => {
+    const grid = labGridRef.current;
+    if (!grid || typeof ResizeObserver === "undefined") return;
+    const panels = Array.from(
+      grid.querySelectorAll<HTMLElement>(":scope > .epicure-panel"),
+    );
+
+    const arrange = () => {
+      const singleColumn = window.matchMedia("(max-width: 1180px)").matches;
+      panels.forEach((panel) => {
+        panel.style.gridRowEnd = "auto";
+      });
+      if (singleColumn) return;
+
+      const styles = window.getComputedStyle(grid);
+      const rowHeight = Number.parseFloat(styles.gridAutoRows) || 8;
+      const rowGap = Number.parseFloat(styles.rowGap) || 14;
+      panels.forEach((panel) => {
+        const height = panel.scrollHeight;
+        panel.style.gridRowEnd = `span ${Math.ceil(
+          (height + rowGap) / (rowHeight + rowGap),
+        )}`;
+      });
+    };
+
+    const observer = new ResizeObserver(arrange);
+    panels.forEach((panel) => observer.observe(panel));
+    window.addEventListener("resize", arrange);
+    const frame = window.requestAnimationFrame(arrange);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", arrange);
+      observer.disconnect();
+    };
+  }, []);
 
   const searchResults = useMemo(() => {
     const normalized = query.trim().toLowerCase().replace(/\s+/g, "_");
@@ -323,24 +368,55 @@ export function EpicureLab({
       </header>
 
       <div className="epicure-provider-strip">
-        {[
-          ["Epicure graph", backendConfigured && (providers?.epicure ?? true)],
-          ["Recipe AI", providers?.recipe ?? false],
-          ["USDA nutrition", providers?.nutrition ?? false],
-          ["Imagen thumbnail", providers?.image ?? false],
-        ].map(([label, ready]) => (
-          <span className={ready ? "is-ready" : ""} key={String(label)}>
-            <i />
-            {String(label)}
-            <small>{ready ? "ready" : "needs key"}</small>
-          </span>
-        ))}
+        <span className={backendConfigured && (providers?.epicure ?? true) ? "is-ready" : ""}>
+          <Network size={16} />
+          <span>Epicure graph</span>
+          <small>{backendConfigured ? "ready" : "connect backend"}</small>
+        </span>
+        <span className={providers?.recipe ? "is-ready" : ""}>
+          <WandSparkles size={16} />
+          <span>Recipe AI</span>
+          <small>
+            {providers?.recipe
+              ? "ready"
+              : providers?.missing.recipe.includes("DEEPSEEK_API_KEY")
+                ? "add DeepSeek key"
+                : "checking"}
+          </small>
+        </span>
+        <span className={providers?.nutrition ? "is-ready" : ""}>
+          <FlaskConical size={16} />
+          <span>USDA nutrition</span>
+          <small>
+            {providers?.nutrition
+              ? "ready"
+              : providers?.missing.nutrition.includes("USDA_API_KEY")
+                ? "optional key"
+                : "checking"}
+          </small>
+        </span>
+        <span className={providers?.image ? "is-ready" : ""}>
+          <ImageIcon size={16} />
+          <span>Imagen thumbnail</span>
+          <small>
+            {providers?.image
+              ? "ready"
+              : providers?.missing.image.includes("GEMINI_API_KEY")
+                ? "add Gemini key"
+                : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
+                  ? "connect Blob"
+                  : "checking"}
+          </small>
+        </span>
       </div>
 
-      <div className="epicure-lab-grid">
+      <div className="epicure-lab-grid" ref={labGridRef}>
         <section className="epicure-panel epicure-ingredients">
           <div className="epicure-panel-heading">
-            <span>01</span>
+            <span>
+              <Search size={18} />
+              <small>01</small>
+            </span>
             <div>
               <h4>Search 1,790 ingredients</h4>
               <p>Choose the anchors Epicure should build the flavour graph around.</p>
@@ -458,7 +534,10 @@ export function EpicureLab({
 
         <section className="epicure-panel epicure-direction">
           <div className="epicure-panel-heading">
-            <span>02</span>
+            <span>
+              <SlidersHorizontal size={18} />
+              <small>02</small>
+            </span>
             <div>
               <h4>Direct the recipe</h4>
               <p>Give the model enough constraint to produce something bakeable.</p>
@@ -590,7 +669,8 @@ export function EpicureLab({
             type="button"
             className={`epicure-image-toggle ${
               brief.generateImage ? "is-active" : ""
-            }`}
+            } ${providers && !providers.image ? "is-unavailable" : ""}`}
+            disabled={Boolean(providers && !providers.image)}
             onClick={() =>
               setBrief((current) => ({
                 ...current,
@@ -601,7 +681,13 @@ export function EpicureLab({
             <ImageIcon size={16} />
             <span>
               <strong>Generate an editorial thumbnail</strong>
-              <small>Google Imagen 4, uploaded to your Vercel Blob store</small>
+              <small>
+                {providers?.image
+                  ? "Google Imagen 4, uploaded to your Vercel Blob store"
+                  : providers?.missing.image.includes("GEMINI_API_KEY")
+                    ? "Optional: add GEMINI_API_KEY in Vercel to enable"
+                    : "Optional image generation provider"}
+              </small>
             </span>
             <i />
           </button>
@@ -609,7 +695,10 @@ export function EpicureLab({
 
         <section className="epicure-panel epicure-pairing-panel">
           <div className="epicure-panel-heading">
-            <span>03</span>
+            <span>
+              <Network size={18} />
+              <small>03</small>
+            </span>
             <div>
               <h4>Map the flavour graph</h4>
               <p>Find bridges and nearby ingredients before committing to a recipe.</p>
@@ -683,7 +772,10 @@ export function EpicureLab({
 
         <section className="epicure-panel epicure-generate">
           <div className="epicure-panel-heading">
-            <span>04</span>
+            <span>
+              <WandSparkles size={18} />
+              <small>04</small>
+            </span>
             <div>
               <h4>Generate and review</h4>
               <p>The result stays editable and never publishes automatically.</p>
@@ -703,7 +795,8 @@ export function EpicureLab({
                 disabled={
                   !brief.ingredients.length ||
                   generationBusy ||
-                  !backendConfigured
+                  !backendConfigured ||
+                  Boolean(providers && !providers.recipe)
                 }
                 onClick={requestRecipe}
               >
@@ -714,6 +807,12 @@ export function EpicureLab({
                 )}
                 {generationBusy ? "Developing recipe..." : "Generate recipe"}
               </button>
+              {providers && !providers.recipe && (
+                <small className="epicure-provider-help">
+                  Add <code>DEEPSEEK_API_KEY</code> in Vercel, then redeploy to
+                  enable recipe generation.
+                </small>
+              )}
             </div>
           ) : (
             <article className="epicure-generated-card">

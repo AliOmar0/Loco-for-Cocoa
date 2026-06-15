@@ -91,6 +91,11 @@ export type AiProviderStatus = {
   recipe: boolean;
   nutrition: boolean;
   image: boolean;
+  missing: {
+    recipe: string[];
+    nutrition: string[];
+    image: string[];
+  };
   models: { recipe: string; image: string };
 };
 

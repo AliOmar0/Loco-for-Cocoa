@@ -18,57 +18,155 @@ export type RecipeGenerationRequest = z.infer<
   typeof recipeGenerationRequestSchema
 >;
 
+export class RecipeAiError extends Error {
+  code: string;
+  status: number;
+
+  constructor(code: string, message: string, status = 502) {
+    super(message);
+    this.name = "RecipeAiError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
+function normalizeEnum(value: unknown) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_]+/g, "-");
+}
+
+const categorySchema = z.preprocess((value) => {
+  const normalized = normalizeEnum(value);
+  if (normalized.includes("cookie") || normalized.includes("brownie")) {
+    return "cookie";
+  }
+  if (normalized.includes("no-bake") || normalized.includes("truffle")) {
+    return "no-bake";
+  }
+  if (normalized.includes("breakfast")) return "breakfast";
+  return "cake";
+}, z.enum(["cake", "cookie", "no-bake", "breakfast"]));
+
+const moodSchema = z.preprocess((value) => {
+  const normalized = normalizeEnum(value);
+  if (normalized.includes("cute") || normalized.includes("playful")) return "cute";
+  if (normalized.includes("dramatic") || normalized.includes("elegant")) {
+    return "dramatic";
+  }
+  if (normalized.includes("quick") || normalized.includes("urgent")) return "quick";
+  return "cozy";
+}, z.enum(["cozy", "cute", "dramatic", "quick"]));
+
+const difficultySchema = z.preprocess((value) => {
+  const normalized = normalizeEnum(value);
+  if (normalized.includes("project") || normalized.includes("hard")) {
+    return "Project";
+  }
+  if (normalized.includes("medium") || normalized.includes("moderate")) {
+    return "Medium";
+  }
+  return "Easy";
+}, z.enum(["Easy", "Medium", "Project"]));
+
+const dietaryValues = [
+  "vegetarian",
+  "vegan",
+  "gluten-free",
+  "dairy-free",
+  "egg-free",
+  "nut-free",
+] as const;
+
+const generatedIngredientSchema = z.preprocess((value) => {
+  if (typeof value === "string") {
+    const grams = Number(value.match(/(\d+(?:\.\d+)?)\s*g\b/i)?.[1] || 0);
+    return {
+      display: value,
+      name: value
+        .replace(/^\s*[\d./-]+\s*(?:g|kg|ml|l|oz|cups?|tbsp|tsp)?\s*/i, "")
+        .replace(/,.+$/, "")
+        .trim(),
+      grams,
+    };
+  }
+  if (value && typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    return {
+      display: row.display || row.amount || row.ingredient || row.name,
+      name: row.name || row.ingredient || row.display,
+      grams: row.grams || row.gramWeight || row.weight || 0,
+    };
+  }
+  return value;
+}, z.object({
+  display: z.coerce.string().min(2).max(180),
+  name: z.coerce.string().min(1).max(120),
+  grams: z.coerce.number().min(0).max(10000).catch(0),
+}));
+
+const generatedStepSchema = z.preprocess((value) => {
+  if (typeof value === "string") return { text: value };
+  if (value && typeof value === "object") {
+    const row = value as Record<string, unknown>;
+    return {
+      text: row.text || row.instruction || row.method,
+      duration: row.duration || row.minutes,
+    };
+  }
+  return value;
+}, z.object({
+  text: z.coerce.string().min(4).max(800),
+  duration: z.coerce.number().int().min(0).max(1440).optional().catch(undefined),
+}));
+
 const generatedRecipeSchema = z.object({
-  title: z.string().min(2).max(90),
-  subtitle: z.string().min(3).max(180),
-  description: z.string().min(20).max(900),
-  category: z.enum(["cake", "cookie", "no-bake", "breakfast"]),
-  mood: z.enum(["cozy", "cute", "dramatic", "quick"]),
-  time: z.number().int().min(1).max(1440),
-  difficulty: z.enum(["Easy", "Medium", "Project"]),
-  servings: z.number().int().min(1).max(40),
-  realisticYield: z.string().min(2).max(180),
-  kitchenMess: z.number().int().min(1).max(5),
-  dietary: z.array(
-    z.enum([
-      "vegetarian",
-      "vegan",
-      "gluten-free",
-      "dairy-free",
-      "egg-free",
-      "nut-free",
-    ]),
-  ),
-  ingredients: z
-    .array(
-      z.object({
-        display: z.string().min(2).max(180),
-        name: z.string().min(1).max(120),
-        grams: z.number().min(0).max(10000),
-      }),
-    )
-    .min(3)
-    .max(30),
-  steps: z
-    .array(
-      z.object({
-        text: z.string().min(4).max(800),
-        duration: z.number().int().min(0).max(1440).optional(),
-      }),
-    )
-    .min(2)
-    .max(30),
-  notes: z.string().min(3).max(1000),
+  title: z.coerce.string().min(2).max(90),
+  subtitle: z.coerce.string().min(3).max(180),
+  description: z.coerce.string().min(20).max(900),
+  category: categorySchema,
+  mood: moodSchema,
+  time: z.coerce.number().int().min(1).max(1440),
+  difficulty: difficultySchema,
+  servings: z.coerce.number().int().min(1).max(40),
+  realisticYield: z.coerce.string().min(2).max(180),
+  kitchenMess: z.coerce.number().int().min(1).max(5).catch(2),
+  dietary: z
+    .array(z.string())
+    .default([])
+    .transform((values) =>
+      values
+        .map(normalizeEnum)
+        .filter((value): value is (typeof dietaryValues)[number] =>
+          dietaryValues.includes(value as (typeof dietaryValues)[number]),
+        ),
+    ),
+  ingredients: z.array(generatedIngredientSchema).min(3).max(30),
+  steps: z.array(generatedStepSchema).min(2).max(30),
+  notes: z.coerce.string().min(3).max(1000),
   nutritionEstimate: z.object({
-    calories: z.number().min(0),
-    protein: z.number().min(0),
-    carbohydrates: z.number().min(0),
-    fat: z.number().min(0),
-    sugar: z.number().min(0),
-    fiber: z.number().min(0),
-    sodium: z.number().min(0),
+    calories: z.coerce.number().min(0).catch(0),
+    protein: z.coerce.number().min(0).catch(0),
+    carbohydrates: z.coerce.number().min(0).catch(0),
+    fat: z.coerce.number().min(0).catch(0),
+    sugar: z.coerce.number().min(0).catch(0),
+    fiber: z.coerce.number().min(0).catch(0),
+    sodium: z.coerce.number().min(0).catch(0),
+  }).default({
+    calories: 0,
+    protein: 0,
+    carbohydrates: 0,
+    fat: 0,
+    sugar: 0,
+    fiber: 0,
+    sodium: 0,
   }),
-  imagePrompt: z.string().min(20).max(1800),
+  imagePrompt: z.coerce
+    .string()
+    .min(10)
+    .max(1800)
+    .default("Editorial food photograph of the finished dessert."),
 });
 
 type GeneratedRecipe = z.infer<typeof generatedRecipeSchema>;
@@ -152,35 +250,109 @@ Do not claim medical benefits. Avoid unsafe raw flour or raw egg instructions.`;
         "Professional editorial food photograph in English, no text or people.",
     },
   };
-  const response = await fetch("https://api.deepseek.com/chat/completions", {
-    method: "POST",
-    signal: AbortSignal.timeout(40_000),
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: system },
-        { role: "user", content: `Create this recipe as JSON:\n${JSON.stringify(user)}` },
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 6000,
-      temperature: 0.65,
-      stream: false,
-    }),
-  });
-  const payload = (await response.json()) as {
+  let response: Response;
+  try {
+    response = await fetch("https://api.deepseek.com/chat/completions", {
+      method: "POST",
+      signal: AbortSignal.timeout(30_000),
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: system },
+          { role: "user", content: `Create this recipe as JSON:\n${JSON.stringify(user)}` },
+        ],
+        thinking: { type: "disabled" },
+        response_format: { type: "json_object" },
+        max_tokens: 4000,
+        temperature: 0.55,
+        stream: false,
+      }),
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new RecipeAiError(
+        "DEEPSEEK_TIMEOUT",
+        "DeepSeek took too long to develop this recipe. Try again with fewer ingredients.",
+        504,
+      );
+    }
+    throw new RecipeAiError(
+      "DEEPSEEK_UNREACHABLE",
+      "DeepSeek could not be reached. Please try generating the recipe again.",
+      503,
+    );
+  }
+
+  const responseText = await response.text();
+  let payload: {
     choices?: Array<{ message?: { content?: string } }>;
     error?: { message?: string };
-  };
+  } = {};
+  try {
+    payload = JSON.parse(responseText) as typeof payload;
+  } catch {
+    throw new RecipeAiError(
+      "DEEPSEEK_BAD_RESPONSE",
+      "DeepSeek returned an unreadable response. Please try again.",
+    );
+  }
   if (!response.ok) {
-    throw new Error(payload.error?.message || "DeepSeek could not generate the recipe.");
+    const providerMessage = payload.error?.message?.toLowerCase() || "";
+    if (response.status === 401 || response.status === 403) {
+      throw new RecipeAiError(
+        "DEEPSEEK_KEY_REJECTED",
+        "DeepSeek rejected the API key. Replace DEEPSEEK_API_KEY in Vercel and redeploy.",
+        503,
+      );
+    }
+    if (
+      response.status === 402 ||
+      providerMessage.includes("balance") ||
+      providerMessage.includes("insufficient")
+    ) {
+      throw new RecipeAiError(
+        "DEEPSEEK_BALANCE",
+        "The DeepSeek account needs API credit before it can generate recipes.",
+        503,
+      );
+    }
+    if (response.status === 429) {
+      throw new RecipeAiError(
+        "DEEPSEEK_RATE_LIMIT",
+        "DeepSeek is temporarily rate-limited. Wait a moment and try again.",
+        429,
+      );
+    }
+    throw new RecipeAiError(
+      "DEEPSEEK_REQUEST_FAILED",
+      payload.error?.message
+        ? `DeepSeek could not generate the recipe: ${payload.error.message}`
+        : "DeepSeek could not generate the recipe. Please try again.",
+    );
   }
   const content = payload.choices?.[0]?.message?.content;
-  if (!content) throw new Error("DeepSeek returned an empty recipe.");
-  return generatedRecipeSchema.parse(JSON.parse(content));
+  if (!content) {
+    throw new RecipeAiError(
+      "DEEPSEEK_EMPTY",
+      "DeepSeek returned an empty recipe. Please try again.",
+    );
+  }
+  try {
+    const cleaned = content
+      .trim()
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/, "");
+    return generatedRecipeSchema.parse(JSON.parse(cleaned));
+  } catch {
+    throw new RecipeAiError(
+      "DEEPSEEK_INVALID_DRAFT",
+      "DeepSeek returned an incomplete recipe draft. Generate it once more.",
+    );
+  }
 }
 
 function nutrientValue(
@@ -304,7 +476,7 @@ async function generateRecipeImage(recipe: GeneratedRecipe) {
     "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
     {
       method: "POST",
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(20_000),
       headers: {
         "x-goog-api-key": apiKey,
         "Content-Type": "application/json",

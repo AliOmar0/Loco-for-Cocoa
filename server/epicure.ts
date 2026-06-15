@@ -50,7 +50,7 @@ async function postMcp(
 ): Promise<{ response: Response; body: string }> {
   const response = await fetch(EPICURE_MCP_URL, {
     method: "POST",
-    signal: AbortSignal.timeout(12_000),
+    signal: AbortSignal.timeout(5_000),
     headers: {
       Accept: "application/json, text/event-stream",
       "Content-Type": "application/json",

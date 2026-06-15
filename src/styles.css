@@ -333,6 +333,208 @@
   }
 }
 
+/* Final Epicure Lab layout and contrast corrections */
+
+.epicure-lab .epicure-lab-grid {
+  grid-auto-rows: 8px;
+  align-items: start;
+}
+
+.epicure-lab .epicure-panel {
+  align-self: start;
+  padding: clamp(22px, 2.6vw, 34px);
+}
+
+.epicure-lab .epicure-panel-heading {
+  margin-bottom: 26px;
+  grid-template-columns: 52px minmax(0, 1fr);
+  align-items: center;
+  gap: 15px;
+}
+
+.epicure-lab .epicure-panel-heading > span {
+  position: relative;
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  border: 1px solid rgba(216, 50, 82, 0.2);
+  border-radius: 15px;
+  background: linear-gradient(145deg, #ffe1e4, #f3a9b5);
+  color: var(--cherry);
+  box-shadow: 0 8px 22px rgba(216, 50, 82, 0.1);
+}
+
+.epicure-lab .epicure-panel-heading > span small {
+  position: absolute;
+  right: 5px;
+  bottom: 4px;
+  font-family: var(--mono);
+  font-size: 6px;
+  font-weight: 800;
+}
+
+.epicure-lab .epicure-panel-heading h4 {
+  margin-bottom: 5px;
+  color: var(--ink);
+  font-size: clamp(27px, 2.2vw, 36px);
+  line-height: 0.98;
+}
+
+.epicure-lab .epicure-panel-heading p {
+  max-width: 560px;
+  color: var(--ink-soft);
+  font-size: 10px;
+  line-height: 1.55;
+}
+
+.epicure-lab .epicure-provider-strip > span {
+  min-height: 56px;
+  padding: 0 15px;
+  gap: 10px;
+  border-radius: 15px;
+  font-size: 9px;
+}
+
+.epicure-lab .epicure-provider-strip > span > svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  color: #a47d74;
+}
+
+.epicure-lab .epicure-provider-strip > span.is-ready > svg {
+  color: #527a4c;
+}
+
+.epicure-lab .epicure-provider-strip > span > span {
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.epicure-lab .epicure-provider-strip small {
+  font-size: 6px;
+  white-space: nowrap;
+}
+
+.epicure-lab .epicure-image-toggle.is-unavailable {
+  border-color: rgba(45, 18, 12, 0.12);
+  background: #f1ece5;
+  color: var(--ink-soft);
+  cursor: not-allowed;
+}
+
+.epicure-lab .epicure-image-toggle.is-unavailable > i {
+  background: #cfc4bb;
+}
+
+.epicure-lab .epicure-image-toggle.is-unavailable > i::after {
+  transform: none;
+}
+
+.epicure-lab .epicure-pairing-panel {
+  border-color: rgba(255, 255, 255, 0.1);
+  background:
+    radial-gradient(circle at 82% 8%, rgba(216, 50, 82, 0.34), transparent 30%),
+    linear-gradient(145deg, #190906, #3b120d 62%, #5c1d23);
+  color: white;
+  box-shadow: 0 20px 54px rgba(37, 12, 8, 0.17);
+}
+
+.epicure-lab .epicure-pairing-panel .epicure-panel-heading > span {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.11);
+  color: white;
+  box-shadow: none;
+}
+
+.epicure-lab .epicure-pairing-panel .epicure-panel-heading h4 {
+  color: white;
+}
+
+.epicure-lab .epicure-pairing-panel .epicure-panel-heading p {
+  color: rgba(255, 255, 255, 0.66);
+}
+
+.epicure-lab .epicure-pairing-panel .epicure-live-pairings > div > span,
+.epicure-lab .epicure-pairing-panel .epicure-cluster > span {
+  color: #f5c778;
+}
+
+.epicure-lab .epicure-pairing-panel .epicure-pairing-flight button,
+.epicure-lab .epicure-pairing-panel .epicure-cluster button {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+}
+
+.epicure-lab .epicure-pairing-panel .epicure-pairing-flight button:hover,
+.epicure-lab .epicure-pairing-panel .epicure-cluster button:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.epicure-lab .epicure-empty-graph {
+  min-height: 210px;
+}
+
+.epicure-lab .epicure-generation-launch {
+  min-height: 285px;
+}
+
+.epicure-provider-help {
+  display: block;
+  max-width: 360px;
+  margin-top: 12px;
+  color: var(--ink-soft);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.epicure-provider-help code {
+  color: var(--cherry);
+  font-family: var(--mono);
+  font-size: 7px;
+}
+
+@media (max-width: 1180px) {
+  .epicure-lab .epicure-lab-grid {
+    grid-auto-rows: auto;
+  }
+
+  .epicure-lab .epicure-panel {
+    grid-row: auto !important;
+  }
+}
+
+@media (max-width: 620px) {
+  .epicure-lab .epicure-panel-heading {
+    grid-template-columns: 44px minmax(0, 1fr);
+    gap: 11px;
+  }
+
+  .epicure-lab .epicure-panel-heading > span {
+    width: 40px;
+    height: 40px;
+    border-radius: 12px;
+  }
+
+  .epicure-lab .epicure-panel-heading > span > svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .epicure-lab .epicure-panel-heading h4 {
+    font-size: 25px;
+  }
+
+  .epicure-lab .epicure-provider-strip {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Epicure generation workspace */
 
 .sr-only {

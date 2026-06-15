@@ -31,8 +31,17 @@ export default {
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
         return json(request, { error: "Your Studio session has expired." }, 401);
       }
+      if (error instanceof Error && error.message.startsWith("Epicure")) {
+        return json(
+          request,
+          {
+            error:
+              "Epicure's live pairing service is temporarily unavailable. You can still generate a recipe from the selected ingredients.",
+          },
+          503,
+        );
+      }
       return publicError(request, error);
     }
   },
 };
-
