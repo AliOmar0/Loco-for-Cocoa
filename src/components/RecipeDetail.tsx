@@ -8,6 +8,8 @@ import {
   Copy,
   Dices,
   Heart,
+  Languages,
+  LoaderCircle,
   Mic,
   Minus,
   Plus,
@@ -39,6 +41,7 @@ import type {
   DietaryTag,
   Recipe,
   RecipeStep,
+  RecipeTranslation,
   SubstitutionOption,
 } from "../types";
 import { RecipeImage } from "./RecipeImage";
@@ -48,8 +51,92 @@ type RecipeDetailProps = {
   favorite: boolean;
   onClose: () => void;
   onToggleFavorite: () => void;
+  language: "en" | "ar";
+  translation: RecipeTranslation | null;
+  translationLoading: boolean;
+  translationError: string;
+  onLanguageChange: (language: "en" | "ar") => void;
   sharedName?: string;
 };
+
+const recipeCopy = {
+  en: {
+    back: "Back to archive",
+    energy: "energy",
+    communityScore: "community score",
+    communitySaves: "community saves",
+    time: "Time",
+    kitchenDisaster: "Kitchen disaster",
+    steps: "Steps",
+    servings: "Servings",
+    sweetPeople: "sweet people",
+    yieldPersonality: "Yield personality",
+    realisticYield: "One pan, eaten over the sink",
+    politePortions: "polite portions",
+    realistic: "Realistic",
+    polite: "Polite",
+    whatYouNeed: "What you need",
+    hideExtras: "Hide extras",
+    kitchenExtras: "Kitchen extras",
+    saved: "Saved",
+    save: "Save",
+    share: "Share",
+    print: "Print",
+    exitBakeMode: "Exit bake mode",
+    startBakeMode: "Start bake mode",
+    method: "The method",
+    makeItHappen: "Make it happen.",
+    complete: "complete",
+    step: "Step",
+    of: "of",
+    bakersNote: "Baker's note",
+    screenAwake: "Screen awake",
+    bakeModeActive: "Bake mode active",
+    pause: "Pause",
+    startGuidedBake: "Start guided bake",
+    resetProgress: "Reset progress",
+    finishRecipe: "Finish recipe",
+    translationUnavailable: "Arabic translation is currently unavailable.",
+  },
+  ar: {
+    back: "العودة إلى الوصفات",
+    energy: "الطابع",
+    communityScore: "تقييم المجتمع",
+    communitySaves: "حفظ من المجتمع",
+    time: "الوقت",
+    kitchenDisaster: "فوضى المطبخ",
+    steps: "الخطوات",
+    servings: "الحصص",
+    sweetPeople: "أشخاص محبون للحلوى",
+    yieldPersonality: "حجم الحصة",
+    realisticYield: "صينية واحدة تؤكل مباشرة من المطبخ",
+    politePortions: "حصص مهذبة",
+    realistic: "واقعية",
+    polite: "مهذبة",
+    whatYouNeed: "المكونات",
+    hideExtras: "إخفاء الخيارات",
+    kitchenExtras: "خيارات إضافية",
+    saved: "محفوظة",
+    save: "حفظ",
+    share: "مشاركة",
+    print: "طباعة",
+    exitBakeMode: "إنهاء وضع الخَبز",
+    startBakeMode: "بدء وضع الخَبز",
+    method: "الطريقة",
+    makeItHappen: "لنبدأ الخَبز.",
+    complete: "مكتمل",
+    step: "الخطوة",
+    of: "من",
+    bakersNote: "ملاحظة الخبّاز",
+    screenAwake: "الشاشة ستبقى مضاءة",
+    bakeModeActive: "وضع الخَبز نشط",
+    pause: "إيقاف مؤقت",
+    startGuidedBake: "ابدأ الخَبز الموجّه",
+    resetProgress: "إعادة التقدم",
+    finishRecipe: "إنهاء الوصفة",
+    translationUnavailable: "الترجمة العربية غير متاحة حالياً.",
+  },
+} as const;
 
 function StepTimer({
   step,
@@ -139,6 +226,11 @@ export function RecipeDetail({
   favorite,
   onClose,
   onToggleFavorite,
+  language,
+  translation,
+  translationLoading,
+  translationError,
+  onLanguageChange,
   sharedName,
 }: RecipeDetailProps) {
   const bakeSessions = useExperienceStore((state) => state.bakeSessions);
@@ -173,6 +265,24 @@ export function RecipeDetail({
   const gestureFrame = useRef(0);
   const lastFaceY = useRef<number | null>(null);
   const activeStepRef = useRef(activeStep);
+  const isArabic = language === "ar" && Boolean(translation);
+  const copy = recipeCopy[language];
+  const displayRecipe = useMemo<Recipe>(() => {
+    if (!isArabic || !translation) return recipe;
+    return {
+      ...recipe,
+      title: translation.title,
+      subtitle: translation.subtitle,
+      description: translation.description,
+      realisticYield: translation.realisticYield || recipe.realisticYield,
+      ingredients: translation.ingredients,
+      steps: recipe.steps.map((step, index) => ({
+        ...step,
+        text: translation.steps[index] || step.text,
+      })),
+      notes: translation.notes,
+    };
+  }, [isArabic, recipe, translation]);
 
   useEffect(() => {
     activeStepRef.current = activeStep;
@@ -289,15 +399,36 @@ export function RecipeDetail({
   const runVoiceCommand = (command: string) => {
     if (!recipe) return;
     const normalized = command.toLowerCase();
-    if (normalized.includes("next step")) setStep(activeStep + 1);
-    else if (normalized.includes("previous step")) setStep(activeStep - 1);
-    else if (normalized.includes("check ingredient")) {
+    if (
+      normalized.includes("next step") ||
+      normalized.includes("الخطوة التالية") ||
+      normalized.includes("التالي")
+    ) {
+      setStep(activeStep + 1);
+    } else if (
+      normalized.includes("previous step") ||
+      normalized.includes("الخطوة السابقة") ||
+      normalized.includes("السابق")
+    ) {
+      setStep(activeStep - 1);
+    } else if (
+      normalized.includes("check ingredient") ||
+      normalized.includes("حدد المكون") ||
+      normalized.includes("علّم المكون")
+    ) {
       const next = recipe.ingredients.findIndex(
         (_, index) => !checkedIngredients.includes(index),
       );
       if (next >= 0) toggleIngredient(next);
-    } else if (normalized.includes("complete step")) toggleStep(activeStep);
-    else if (normalized.includes("start timer")) {
+    } else if (
+      normalized.includes("complete step") ||
+      normalized.includes("أكمل الخطوة")
+    ) {
+      toggleStep(activeStep);
+    } else if (
+      normalized.includes("start timer") ||
+      normalized.includes("ابدأ المؤقت")
+    ) {
       const step = recipe.steps[activeStep];
       if (step.duration) {
         updateTimer(recipe.id, activeStep, {
@@ -325,7 +456,7 @@ export function RecipeDetail({
     const recognition = new Recognition();
     recognition.continuous = true;
     recognition.interimResults = false;
-    recognition.lang = "en-US";
+    recognition.lang = language === "ar" ? "ar-SA" : "en-US";
     recognition.onresult = (event) => {
       const latest = event.results[event.results.length - 1];
       runVoiceCommand(latest[0].transcript);
@@ -412,7 +543,11 @@ export function RecipeDetail({
 
   return (
           <motion.article
-            className={`recipe-detail ${bakeMode ? "is-bake-mode" : ""}`}
+            className={`recipe-detail ${bakeMode ? "is-bake-mode" : ""} ${
+              language === "ar" ? "is-rtl" : ""
+            }`}
+            lang={language}
+            dir={language === "ar" ? "rtl" : "ltr"}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 0.28, ease: "easeOut" }}
@@ -420,16 +555,45 @@ export function RecipeDetail({
             <div className="detail-rail">
               <button onClick={onClose} aria-label="Back to recipes">
                 <ArrowLeft size={19} />
-                <span>Back to archive</span>
+                <span>{copy.back}</span>
               </button>
               <span>Recipe / {recipe.id}</span>
-              <span className="detail-rail-status">Loco for Cocoa</span>
+              <div className="recipe-language-switch" dir="ltr">
+                <button
+                  type="button"
+                  className={language === "en" ? "is-active" : ""}
+                  onClick={() => onLanguageChange("en")}
+                  aria-pressed={language === "en"}
+                >
+                  EN
+                </button>
+                <button
+                  type="button"
+                  className={language === "ar" ? "is-active" : ""}
+                  onClick={() => onLanguageChange("ar")}
+                  aria-pressed={language === "ar"}
+                  disabled={translationLoading}
+                >
+                  {translationLoading ? (
+                    <LoaderCircle className="is-spinning" size={14} />
+                  ) : (
+                    <Languages size={14} />
+                  )}
+                  العربية
+                </button>
+              </div>
             </div>
+
+            {translationError && (
+              <p className="recipe-translation-error" role="alert">
+                {translationError || copy.translationUnavailable}
+              </p>
+            )}
 
             <div className="detail-hero">
               <RecipeImage
                 recipe={recipe}
-                alt={recipe.title}
+                alt={displayRecipe.title}
                 sizes="(max-width: 620px) 100vw, 94vw"
                 sharedName={sharedName}
               />
@@ -440,13 +604,20 @@ export function RecipeDetail({
                 }}
               />
               <div className="detail-title">
-                <span>{moodLabels[recipe.mood]} energy</span>
-                <h2>{recipe.title}</h2>
-                <p>{recipe.description}</p>
+                <span>
+                  {moodLabels[recipe.mood]} {copy.energy}
+                </span>
+                <h2>{displayRecipe.title}</h2>
+                <p>{displayRecipe.description}</p>
               </div>
               <div className="detail-score">
                 <strong>{recipe.rating}</strong>
-                <span>community score</span>
+                <span>{copy.communityScore}</span>
+                <small>
+                  <Heart size={13} fill="currentColor" />
+                  {recipe.saves.toLocaleString(language === "ar" ? "ar" : "en")}{" "}
+                  {copy.communitySaves}
+                </small>
               </div>
             </div>
 
@@ -455,25 +626,27 @@ export function RecipeDetail({
                 <div className="detail-meta-grid">
                   <div>
                     <Clock3 size={16} />
-                    <span>Time</span>
+                    <span>{copy.time}</span>
                     <strong>{recipe.time} min</strong>
                   </div>
                   <div>
                     <ChefHat size={16} />
-                    <span>Kitchen disaster</span>
+                    <span>{copy.kitchenDisaster}</span>
                     <strong>{recipe.kitchenMess || 3} / 5</strong>
                   </div>
                   <div>
                     <Zap size={16} />
-                    <span>Steps</span>
+                    <span>{copy.steps}</span>
                     <strong>{recipe.steps.length}</strong>
                   </div>
                 </div>
 
                 <div className="serving-control">
                   <div>
-                    <span>Servings</span>
-                    <strong>{servings} sweet people</strong>
+                    <span>{copy.servings}</span>
+                    <strong>
+                      {servings} {copy.sweetPeople}
+                    </strong>
                   </div>
                   <div>
                     <button
@@ -500,11 +673,11 @@ export function RecipeDetail({
 
                 <div className="portion-personality">
                   <div>
-                    <span>Yield personality</span>
+                    <span>{copy.yieldPersonality}</span>
                     <strong>
                       {realisticPortions
-                        ? recipe.realisticYield || "One pan, eaten over the sink"
-                        : `${servings} polite portions`}
+                        ? displayRecipe.realisticYield || copy.realisticYield
+                        : `${servings} ${copy.politePortions}`}
                     </strong>
                   </div>
                   <button
@@ -515,12 +688,12 @@ export function RecipeDetail({
                       })
                     }
                   >
-                    {realisticPortions ? "Realistic" : "Polite"}
+                    {realisticPortions ? copy.realistic : copy.polite}
                   </button>
                 </div>
 
                 <div className="ingredient-heading">
-                  <h3>What you need</h3>
+                  <h3>{copy.whatYouNeed}</h3>
                   <button
                     className={extrasOpen ? "is-active" : ""}
                     onClick={() => {
@@ -532,7 +705,7 @@ export function RecipeDetail({
                     aria-expanded={extrasOpen}
                   >
                     <Sparkles size={14} />
-                    {extrasOpen ? "Hide extras" : "Kitchen extras"}
+                    {extrasOpen ? copy.hideExtras : copy.kitchenExtras}
                   </button>
                 </div>
 
@@ -640,7 +813,7 @@ export function RecipeDetail({
                 </AnimatePresence>
 
                 <ul className={`ingredient-list ${extrasOpen ? "has-extras" : ""}`}>
-                  {recipe.ingredients.map((ingredient, index) => {
+                  {displayRecipe.ingredients.map((ingredient, index) => {
                     const checked = checkedIngredients.includes(index);
                     return (
                     <li key={ingredient} className={checked ? "is-checked" : ""}>
@@ -742,7 +915,8 @@ export function RecipeDetail({
                     }}
                   >
                     <Heart size={16} fill={favorite ? "currentColor" : "none"} />
-                    {favorite ? "Saved" : "Save"}
+                    {favorite ? copy.saved : copy.save}
+                    <small>{recipe.saves.toLocaleString(language === "ar" ? "ar" : "en")}</small>
                   </motion.button>
                   <button
                     onClick={async () => {
@@ -750,7 +924,7 @@ export function RecipeDetail({
                     }}
                   >
                     <Share2 size={16} />
-                    Share
+                    {copy.share}
                   </button>
                   <motion.button
                     whileTap={{ scaleX: 1.1, scaleY: 0.76 }}
@@ -758,14 +932,14 @@ export function RecipeDetail({
                     onClick={() => window.setTimeout(() => window.print(), 220)}
                   >
                     <Printer size={16} />
-                    Print
+                    {copy.print}
                   </motion.button>
                   <button
                     className={bakeMode ? "is-active" : ""}
                     onClick={toggleBakeMode}
                   >
                     <Play size={16} />
-                    {bakeMode ? "Exit bake mode" : "Start bake mode"}
+                    {bakeMode ? copy.exitBakeMode : copy.startBakeMode}
                   </button>
                 </div>
 
@@ -796,12 +970,12 @@ export function RecipeDetail({
               <section className="method-panel">
                 <div className="method-heading">
                   <div>
-                    <span>The method</span>
-                    <h3>Make it happen.</h3>
+                    <span>{copy.method}</span>
+                    <h3>{copy.makeItHappen}</h3>
                   </div>
                   <div className="method-progress" style={{ "--progress": `${progress}%` } as React.CSSProperties}>
                     <strong>{progress}%</strong>
-                    <span>complete</span>
+                    <span>{copy.complete}</span>
                   </div>
                 </div>
 
@@ -809,13 +983,14 @@ export function RecipeDetail({
                   <div className="bake-focus-card" role="status">
                     <div>
                       <span>
-                        Step {activeStep + 1} of {recipe.steps.length}
+                        {copy.step} {activeStep + 1} {copy.of}{" "}
+                        {displayRecipe.steps.length}
                       </span>
-                      <strong>{recipe.steps[activeStep]?.text}</strong>
+                      <strong>{displayRecipe.steps[activeStep]?.text}</strong>
                     </div>
                     <StepTimer
                       key={activeStep}
-                      step={recipe.steps[activeStep]}
+                      step={displayRecipe.steps[activeStep]}
                       timer={session?.timers[activeStep]}
                       onChange={(timer) =>
                         updateTimer(recipe.id, activeStep, timer)
@@ -825,7 +1000,7 @@ export function RecipeDetail({
                 )}
 
                 <ol className="method-list">
-                  {recipe.steps.map((step, index) => {
+                  {displayRecipe.steps.map((step, index) => {
                     const isComplete = completed.includes(index);
                     return (
                       <li
@@ -859,10 +1034,12 @@ export function RecipeDetail({
                 </ol>
 
                 <div className="bakers-note">
-                  <span>Baker's note</span>
-                  <p>{recipe.notes}</p>
+                  <span>{copy.bakersNote}</span>
+                  <p>{displayRecipe.notes}</p>
                   <button
-                    onClick={() => navigator.clipboard?.writeText(recipe.notes)}
+                    onClick={() =>
+                      navigator.clipboard?.writeText(displayRecipe.notes)
+                    }
                     aria-label="Copy baker's note"
                   >
                     <Copy size={15} />
@@ -883,28 +1060,30 @@ export function RecipeDetail({
                   </button>
                   <button className="bake-mode-status" onClick={() => setStep(activeStep)}>
                     <span>
-                      Step {activeStep + 1} / {recipe.steps.length}
+                      {copy.step} {activeStep + 1} / {displayRecipe.steps.length}
                     </span>
                     <strong>
-                      {wakeLock ? "Screen awake" : "Bake mode active"}
+                      {wakeLock ? copy.screenAwake : copy.bakeModeActive}
                     </strong>
                   </button>
                   <button
                     onClick={() => setStep(activeStep + 1)}
-                    disabled={activeStep === recipe.steps.length - 1}
+                    disabled={activeStep === displayRecipe.steps.length - 1}
                     aria-label="Next step"
                   >
                     <ChevronRight size={18} />
                   </button>
                   <button className="bake-mode-exit" onClick={toggleBakeMode}>
-                    Pause
+                    {copy.pause}
                   </button>
                 </>
               ) : (
                 <button className="bake-mode-start" onClick={toggleBakeMode}>
                   <Play size={17} fill="currentColor" />
-                  Start guided bake
-                  <span>{recipe.steps.length} steps</span>
+                  {copy.startGuidedBake}
+                  <span>
+                    {displayRecipe.steps.length} {copy.steps}
+                  </span>
                 </button>
               )}
             </div>
@@ -921,11 +1100,11 @@ export function RecipeDetail({
                   }}
                 >
                   <RotateCw size={16} />
-                  Reset progress
+                  {copy.resetProgress}
                 </button>
                 <button className="finish-recipe" onClick={finishRecipe}>
                   <Sparkles size={17} />
-                  Finish recipe
+                  {copy.finishRecipe}
                 </button>
               </div>
             )}

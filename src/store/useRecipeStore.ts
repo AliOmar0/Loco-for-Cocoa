@@ -13,6 +13,8 @@ type RecipeStore = {
   deleteRecipe: (id: string) => void;
   duplicateRecipe: (id: string) => string | undefined;
   toggleFavorite: (id: string) => void;
+  setFavorite: (id: string, saved: boolean) => void;
+  setRecipeSaveCount: (id: string, saves: number) => void;
   togglePublished: (id: string) => void;
   replaceRecipes: (recipes: Recipe[]) => void;
   replaceCollections: (collections: RecipeCollection[]) => void;
@@ -89,6 +91,22 @@ export const useRecipeStore = create<RecipeStore>()(
           favorites: state.favorites.includes(id)
             ? state.favorites.filter((favorite) => favorite !== id)
             : [...state.favorites, id],
+        })),
+      setFavorite: (id, saved) =>
+        set((state) => ({
+          favorites: saved
+            ? state.favorites.includes(id)
+              ? state.favorites
+              : [...state.favorites, id]
+            : state.favorites.filter((favorite) => favorite !== id),
+        })),
+      setRecipeSaveCount: (id, saves) =>
+        set((state) => ({
+          recipes: state.recipes.map((recipe) =>
+            recipe.id === id
+              ? { ...recipe, saves: Math.max(0, saves) }
+              : recipe,
+          ),
         })),
       togglePublished: (id) =>
         set((state) => ({

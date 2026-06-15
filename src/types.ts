@@ -7,7 +7,8 @@ export type DietaryTag =
   | "gluten-free"
   | "dairy-free"
   | "egg-free"
-  | "nut-free";
+  | "nut-free"
+  | "zero-added-sugar";
 
 export type RecipeStep = {
   text: string;
@@ -75,6 +76,17 @@ export type Recipe = {
   accent: [string, string];
   createdAt: string;
   updatedAt: string;
+};
+
+export type RecipeTranslation = {
+  language: "ar";
+  title: string;
+  subtitle: string;
+  description: string;
+  realisticYield?: string;
+  ingredients: string[];
+  steps: string[];
+  notes: string;
 };
 
 export type RecipeRevision = {

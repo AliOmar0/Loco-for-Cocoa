@@ -219,7 +219,8 @@ pipeline, so Loco for Cocoa uses separate providers for the rest:
 
 - DeepSeek V4 Pro returns a structured, editable recipe draft.
 - USDA FoodData Central calculates nutrition from approximate gram weights.
-- Google Imagen 4 creates the editorial recipe thumbnail.
+- Pollinations provides the default no-payment community thumbnail renderer.
+- Google Gemini image generation is an optional paid fallback.
 - Vercel Blob stores the generated image with the rest of the recipe media.
 
 Add these variables in **Vercel → Project Settings → Environment Variables**:
@@ -229,17 +230,25 @@ EPICURE_MCP_URL=https://epicure-mcp.kaikaku.ai/mcp
 DEEPSEEK_API_KEY=your-deepseek-api-key
 DEEPSEEK_MODEL=deepseek-v4-pro
 USDA_API_KEY=your-fooddata-central-api-key
-GEMINI_API_KEY=your-google-ai-studio-api-key
+POLLINATIONS_API_KEY=optional-free-pollinations-key
+GEMINI_API_KEY=optional-paid-google-ai-studio-key
+GEMINI_IMAGE_MODEL=gemini-3.1-flash-image
 ```
 
 `BLOB_READ_WRITE_TOKEN` is also required for generated thumbnails and is
 normally supplied when the Blob store is connected. Set every private variable
 for Production, Preview, and Development, then redeploy.
 
+Pollinations requires a free API key, but creating it does not require a card or
+payment. Its community credits and rate limits are managed in the Pollinations
+dashboard. Google currently lists API image generation as paid-only, so
+`GEMINI_API_KEY` is never required by this project.
+
 The Lab remains useful with partial configuration:
 
 - Without `USDA_API_KEY`, nutrition is clearly labeled **AI estimate**.
-- Without `GEMINI_API_KEY` or Blob, the recipe is generated without a thumbnail.
+- Without Blob, the recipe is generated without a thumbnail because there is
+  nowhere permanent to store the generated file.
 - Without `DEEPSEEK_API_KEY`, ingredient search and pairings work, but recipe
   generation is disabled by the API.
 

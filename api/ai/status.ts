@@ -20,7 +20,10 @@ export default {
         ? []
         : ["USDA_API_KEY"];
       const missingImage = [
-        ...(!process.env.GEMINI_API_KEY ? ["GEMINI_API_KEY"] : []),
+        ...(!process.env.POLLINATIONS_API_KEY &&
+        !process.env.GEMINI_API_KEY
+          ? ["POLLINATIONS_API_KEY"]
+          : []),
         ...(!process.env.BLOB_READ_WRITE_TOKEN
           ? ["BLOB_READ_WRITE_TOKEN"]
           : []),
@@ -30,6 +33,7 @@ export default {
         recipe: missingRecipe.length === 0,
         nutrition: missingNutrition.length === 0,
         image: missingImage.length === 0,
+        freeImage: Boolean(process.env.POLLINATIONS_API_KEY),
         missing: {
           recipe: missingRecipe,
           nutrition: missingNutrition,
@@ -37,7 +41,15 @@ export default {
         },
         models: {
           recipe: process.env.DEEPSEEK_MODEL?.trim() || "deepseek-v4-pro",
-          image: "imagen-4.0-generate-001",
+          image:
+            process.env.POLLINATIONS_API_KEY?.trim()
+              ? "pollinations-free (authenticated)"
+              : process.env.GEMINI_IMAGE_MODEL?.trim() ||
+                "gemini-3.1-flash-image",
+          imageFallback: process.env.GEMINI_API_KEY
+            ? process.env.GEMINI_IMAGE_MODEL?.trim() ||
+              "gemini-3.1-flash-image"
+            : "none",
         },
       });
     } catch (error) {

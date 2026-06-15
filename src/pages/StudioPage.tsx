@@ -75,6 +75,7 @@ const recipeSchema = z.object({
       "dairy-free",
       "egg-free",
       "nut-free",
+      "zero-added-sugar",
     ]),
   ),
   nutrition: z
@@ -728,6 +729,7 @@ function RecipeEditor({
                       "dairy-free",
                       "egg-free",
                       "nut-free",
+                      "zero-added-sugar",
                     ] as DietaryTag[]
                   ).map((tag) => (
                     <label key={tag}>

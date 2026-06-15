@@ -1,5 +1,9 @@
 import { neon } from "@neondatabase/serverless";
-import type { Recipe, RecipeCollection } from "../src/types.js";
+import type {
+  Recipe,
+  RecipeCollection,
+  RecipeTranslation,
+} from "../src/types.js";
 import { getDatabaseUrl } from "./config.js";
 
 export type CloudArchive = {
@@ -63,6 +67,28 @@ async function readyDatabase() {
       tx`
         CREATE INDEX IF NOT EXISTS recipe_views_recipe_idx
         ON recipe_views (recipe_id)
+      `,
+      tx`
+        CREATE TABLE IF NOT EXISTS recipe_saves (
+          recipe_id TEXT NOT NULL,
+          visitor_id TEXT NOT NULL,
+          saved_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (recipe_id, visitor_id)
+        )
+      `,
+      tx`
+        CREATE INDEX IF NOT EXISTS recipe_saves_recipe_idx
+        ON recipe_saves (recipe_id)
+      `,
+      tx`
+        CREATE TABLE IF NOT EXISTS recipe_translations (
+          recipe_id TEXT NOT NULL,
+          language TEXT NOT NULL,
+          source_updated_at TEXT NOT NULL,
+          translation JSONB NOT NULL,
+          updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (recipe_id, language)
+        )
       `,
     ])
     .then(() => undefined)
@@ -184,4 +210,89 @@ export async function loadRecipeViews() {
   return new Map(
     rows.map((row) => [String(row.recipe_id), Number(row.views)]),
   );
+}
+
+export async function setRecipeSave(
+  recipeId: string,
+  visitorId: string,
+  saved: boolean,
+) {
+  const sql = await readyDatabase();
+  if (saved) {
+    await sql`
+      INSERT INTO recipe_saves (recipe_id, visitor_id)
+      VALUES (${recipeId}, ${visitorId})
+      ON CONFLICT (recipe_id, visitor_id)
+      DO UPDATE SET saved_at = NOW()
+    `;
+  } else {
+    await sql`
+      DELETE FROM recipe_saves
+      WHERE recipe_id = ${recipeId} AND visitor_id = ${visitorId}
+    `;
+  }
+  const rows = await sql`
+    SELECT COUNT(*)::int AS saves
+    FROM recipe_saves
+    WHERE recipe_id = ${recipeId}
+  `;
+  return Number(rows[0]?.saves || 0);
+}
+
+export async function loadRecipeSaves() {
+  const sql = await readyDatabase();
+  const rows = await sql`
+    SELECT recipe_id, COUNT(*)::int AS saves
+    FROM recipe_saves
+    GROUP BY recipe_id
+  `;
+  return new Map(
+    rows.map((row) => [String(row.recipe_id), Number(row.saves)]),
+  );
+}
+
+export async function loadRecipeTranslation(
+  recipeId: string,
+  language: "ar",
+  sourceUpdatedAt: string,
+): Promise<RecipeTranslation | null> {
+  const sql = await readyDatabase();
+  const rows = await sql`
+    SELECT translation
+    FROM recipe_translations
+    WHERE recipe_id = ${recipeId}
+      AND language = ${language}
+      AND source_updated_at = ${sourceUpdatedAt}
+    LIMIT 1
+  `;
+  return (rows[0]?.translation as RecipeTranslation | undefined) || null;
+}
+
+export async function saveRecipeTranslation(
+  recipeId: string,
+  language: "ar",
+  sourceUpdatedAt: string,
+  translation: RecipeTranslation,
+) {
+  const sql = await readyDatabase();
+  const translationJson = JSON.stringify(translation);
+  await sql`
+    INSERT INTO recipe_translations (
+      recipe_id,
+      language,
+      source_updated_at,
+      translation
+    )
+    VALUES (
+      ${recipeId},
+      ${language},
+      ${sourceUpdatedAt},
+      ${translationJson}::jsonb
+    )
+    ON CONFLICT (recipe_id, language)
+    DO UPDATE SET
+      source_updated_at = EXCLUDED.source_updated_at,
+      translation = EXCLUDED.translation,
+      updated_at = NOW()
+  `;
 }

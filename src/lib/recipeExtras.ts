@@ -12,6 +12,7 @@ export const dietaryLabels: Record<DietaryTag, string> = {
   "dairy-free": "Dairy-free",
   "egg-free": "Egg-free",
   "nut-free": "Nut-free",
+  "zero-added-sugar": "Zero added sugar",
 };
 
 export const messLabels = [

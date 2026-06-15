@@ -1,5 +1,9 @@
 import { getOwnerEmail } from "../../server/config.js";
-import { loadArchive, loadRecipeViews } from "../../server/database.js";
+import {
+  loadArchive,
+  loadRecipeSaves,
+  loadRecipeViews,
+} from "../../server/database.js";
 import {
   json,
   methodNotAllowed,
@@ -16,12 +20,16 @@ export default {
       const archive = await loadArchive(getOwnerEmail());
       if (!archive.initialized) return json(request, archive);
 
-      const viewCounts = await loadRecipeViews();
+      const [viewCounts, saveCounts] = await Promise.all([
+        loadRecipeViews(),
+        loadRecipeSaves(),
+      ]);
       const recipes = archive.recipes
         .filter((recipe) => recipe.published)
         .map((recipe) => ({
           ...recipe,
           views: viewCounts.get(recipe.id) || 0,
+          saves: saveCounts.get(recipe.id) || 0,
         }));
       const publishedIds = new Set(recipes.map((recipe) => recipe.id));
       const collections = archive.collections

@@ -1,5 +1,5 @@
 import { requireOwner } from "../../server/auth.js";
-import { saveArchive } from "../../server/database.js";
+import { loadRecipeSaves, saveArchive } from "../../server/database.js";
 import {
   json,
   methodNotAllowed,
@@ -25,7 +25,14 @@ export default {
         parsed.data.recipes as Recipe[],
         parsed.data.collections as RecipeCollection[],
       );
-      return json(request, archive);
+      const saveCounts = await loadRecipeSaves();
+      return json(request, {
+        ...archive,
+        recipes: archive.recipes.map((recipe) => ({
+          ...recipe,
+          saves: saveCounts.get(recipe.id) || 0,
+        })),
+      });
     } catch (error) {
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
         return json(request, { error: "Your Studio session has expired." }, 401);

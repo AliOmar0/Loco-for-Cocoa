@@ -17,6 +17,7 @@ export const recipeGenerationRequestSchema = z.object({
   texture: z
     .enum(["fudgy", "creamy", "crisp", "airy", "chewy"])
     .default("fudgy"),
+  zeroAddedSugar: z.boolean().default(false),
   vegetarian: z.boolean().default(false),
   plantBased: z.boolean().default(false),
   generateImage: z.boolean().default(true),
@@ -93,6 +94,7 @@ const dietaryValues = [
   "dairy-free",
   "egg-free",
   "nut-free",
+  "zero-added-sugar",
 ] as const;
 
 const generatedIngredientSchema = z.preprocess((value) => {
@@ -228,7 +230,8 @@ Create reliable, food-safe recipes with sound baking ratios and precise measurem
 The supplied Epicure graph comes from a 4.14M-recipe ingredient embedding model. Use its bridges for interesting pairings, but do not force every suggestion.
 Return valid JSON only. Nutrition is an estimate per serving and must be internally consistent with the ingredient quantities.
 Every ingredient needs a readable display string, a plain USDA-searchable name, and its approximate gram weight.
-Do not claim medical benefits. Avoid unsafe raw flour or raw egg instructions.`;
+Do not claim medical benefits. Avoid unsafe raw flour or raw egg instructions.
+When zeroAddedSugar is true, use no added sugar, honey, syrups, molasses, agave, sweetened chocolate, juice concentrates, or hidden caloric sweeteners. Whole fruit and unsweetened ingredients are allowed. Include "zero-added-sugar" in dietary.`;
   const user = {
     brief: request,
     epicurePairingGraph: pairings.raw,
@@ -362,8 +365,28 @@ Do not claim medical benefits. Avoid unsafe raw flour or raw egg instructions.`;
       .trim()
       .replace(/^```(?:json)?\s*/i, "")
       .replace(/\s*```$/, "");
-    return generatedRecipeSchema.parse(JSON.parse(cleaned));
-  } catch {
+    const generated = generatedRecipeSchema.parse(JSON.parse(cleaned));
+    if (!request.zeroAddedSugar) return generated;
+    const forbiddenAddedSugar =
+      /\b(?:brown sugar|white sugar|caster sugar|powdered sugar|icing sugar|coconut sugar|honey|maple syrup|corn syrup|glucose syrup|agave|molasses|golden syrup|date syrup|fruit juice concentrate|sweetened chocolate)\b/i;
+    const invalidIngredient = generated.ingredients.find((ingredient) =>
+      forbiddenAddedSugar.test(ingredient.display),
+    );
+    if (invalidIngredient) {
+      throw new RecipeAiError(
+        "ZERO_ADDED_SUGAR_INVALID",
+        `The generated draft included an added sweetener (${invalidIngredient.display}). Generate it again or turn off zero added sugar.`,
+        422,
+      );
+    }
+    return {
+      ...generated,
+      dietary: Array.from(
+        new Set([...generated.dietary, "zero-added-sugar" as const]),
+      ),
+    };
+  } catch (error) {
+    if (error instanceof RecipeAiError) throw error;
     throw new RecipeAiError(
       "DEEPSEEK_INVALID_DRAFT",
       "DeepSeek returned an incomplete recipe draft. Generate it once more.",
@@ -484,12 +507,22 @@ async function calculateUsdaNutrition(
   };
 }
 
-function imageProviderError(status: number, providerMessage: string) {
+type GeneratedImageBytes = {
+  base64: string;
+  mimeType: string;
+  provider: string;
+};
+
+function imageProviderError(
+  status: number,
+  providerMessage: string,
+  provider: string,
+) {
   const message = providerMessage.toLowerCase();
   if (status === 401 || status === 403) {
     return new RecipeAiError(
-      "IMAGEN_KEY_REJECTED",
-      "Google rejected GEMINI_API_KEY. Replace the key in Vercel, confirm it can use Imagen, then redeploy.",
+      "GOOGLE_IMAGE_KEY_REJECTED",
+      "Google rejected GEMINI_API_KEY. Replace the key in Vercel, confirm image-generation access, then redeploy.",
       503,
     );
   }
@@ -499,15 +532,15 @@ function imageProviderError(status: number, providerMessage: string) {
     message.includes("payment")
   ) {
     return new RecipeAiError(
-      "IMAGEN_BILLING_REQUIRED",
-      "Imagen needs billing enabled on the Google AI project attached to GEMINI_API_KEY.",
+      "GOOGLE_IMAGE_BILLING_REQUIRED",
+      "Google image generation needs billing enabled on the project attached to GEMINI_API_KEY.",
       503,
     );
   }
   if (status === 429 || message.includes("quota")) {
     return new RecipeAiError(
-      "IMAGEN_RATE_LIMIT",
-      "Imagen has reached its current quota. Wait a moment or review the Google AI project quota.",
+      "GOOGLE_IMAGE_RATE_LIMIT",
+      "Google image generation has reached its current quota. Wait a moment or review the project quota.",
       429,
     );
   }
@@ -517,50 +550,44 @@ function imageProviderError(status: number, providerMessage: string) {
     message.includes("country")
   ) {
     return new RecipeAiError(
-      "IMAGEN_REGION_UNAVAILABLE",
-      "Imagen is not available to this Google AI project or region. Use a supported project location.",
+      "GOOGLE_IMAGE_REGION_UNAVAILABLE",
+      "Google image generation is unavailable to this project or region. Use a supported project location.",
       503,
     );
   }
-  if (message.includes("model") || message.includes("permission")) {
+  if (
+    status === 404 ||
+    message.includes("model") ||
+    message.includes("permission") ||
+    message.includes("not found")
+  ) {
     return new RecipeAiError(
-      "IMAGEN_MODEL_UNAVAILABLE",
-      "This Google AI project does not currently have access to Imagen 4. Check model access and billing.",
+      "GOOGLE_IMAGE_MODEL_UNAVAILABLE",
+      `${provider} is unavailable to this Google AI project. The server will try another image model.`,
       503,
     );
   }
   return new RecipeAiError(
-    "IMAGEN_REQUEST_FAILED",
-    "Imagen rejected the thumbnail request. Try a simpler image direction or check the Google AI project.",
+    "GOOGLE_IMAGE_REQUEST_FAILED",
+    `${provider} rejected the thumbnail request. Try a simpler image direction or check the Google AI project.`,
     502,
   );
 }
 
-export async function generateRecipeThumbnail(
-  recipe: RecipeThumbnailRequest,
-  timeoutMs = 45_000,
-): Promise<string> {
-  const apiKey = process.env.GEMINI_API_KEY?.trim();
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
-  if (!apiKey) {
-    throw new RecipeAiError(
-      "IMAGEN_NOT_CONFIGURED",
-      "Thumbnail generation needs GEMINI_API_KEY in the Vercel project.",
-      503,
-    );
-  }
-  if (!blobToken) {
-    throw new RecipeAiError(
-      "BLOB_NOT_CONFIGURED",
-      "Thumbnail storage needs BLOB_READ_WRITE_TOKEN in the Vercel project.",
-      503,
-    );
-  }
+function recipeImagePrompt(recipe: RecipeThumbnailRequest) {
+  return `${recipe.imagePrompt}. Create a finished ${recipe.title} as a cozy cinematic dessert editorial photograph. Macro food photography, 85mm lens, controlled warm window light, tactile crumbs, glossy texture, sophisticated cocoa-and-cream palette, 4:3 landscape composition. No text, no logo, no people, no hands.`;
+}
 
+async function generateWithGeminiImage(
+  recipe: RecipeThumbnailRequest,
+  apiKey: string,
+  model: string,
+  timeoutMs: number,
+): Promise<GeneratedImageBytes> {
   let response: Response;
   try {
     response = await fetch(
-      "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
+      `https://generativelanguage.googleapis.com/v1/models/${encodeURIComponent(model)}:generateContent`,
       {
         method: "POST",
         signal: AbortSignal.timeout(timeoutMs),
@@ -569,11 +596,106 @@ export async function generateRecipeThumbnail(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          instances: [
+          contents: [
             {
-              prompt: `${recipe.imagePrompt}. A finished ${recipe.title}, cozy cinematic dessert editorial, macro food photography, 85mm lens, controlled warm window light, tactile crumbs and glossy texture, sophisticated cocoa-and-cream palette, no text, no logo, no people.`,
+              parts: [{ text: recipeImagePrompt(recipe) }],
             },
           ],
+          generationConfig: {
+            responseModalities: ["TEXT", "IMAGE"],
+          },
+        }),
+      },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new RecipeAiError(
+        "GOOGLE_IMAGE_TIMEOUT",
+        `${model} took too long to render the thumbnail. Try generating it again.`,
+        504,
+      );
+    }
+    throw new RecipeAiError(
+      "GOOGLE_IMAGE_UNREACHABLE",
+      "Google image generation could not be reached. Try again in a moment.",
+      503,
+    );
+  }
+
+  const responseText = await response.text();
+  let payload: {
+    candidates?: Array<{
+      content?: {
+        parts?: Array<{
+          inlineData?: { data?: string; mimeType?: string };
+          inline_data?: { data?: string; mime_type?: string };
+        }>;
+      };
+      finishReason?: string;
+    }>;
+    promptFeedback?: { blockReason?: string };
+    error?: { message?: string };
+  } = {};
+  try {
+    payload = JSON.parse(responseText) as typeof payload;
+  } catch {
+    throw new RecipeAiError(
+      "GOOGLE_IMAGE_BAD_RESPONSE",
+      `${model} returned an unreadable response.`,
+    );
+  }
+  if (!response.ok) {
+    throw imageProviderError(
+      response.status,
+      payload.error?.message || responseText,
+      model,
+    );
+  }
+  const parts = payload.candidates?.[0]?.content?.parts || [];
+  const imagePart = parts.find(
+    (part) => part.inlineData?.data || part.inline_data?.data,
+  );
+  const base64 =
+    imagePart?.inlineData?.data || imagePart?.inline_data?.data || "";
+  if (!base64) {
+    throw new RecipeAiError(
+      "GOOGLE_IMAGE_NO_IMAGE",
+      payload.promptFeedback?.blockReason ||
+      payload.candidates?.[0]?.finishReason
+        ? `${model} filtered this thumbnail direction. Edit the image prompt and try again.`
+        : `${model} completed without returning an image.`,
+      422,
+    );
+  }
+  return {
+    base64,
+    mimeType:
+      imagePart?.inlineData?.mimeType ||
+      imagePart?.inline_data?.mime_type ||
+      "image/png",
+    provider: model,
+  };
+}
+
+async function generateWithImagen(
+  recipe: RecipeThumbnailRequest,
+  apiKey: string,
+  timeoutMs: number,
+): Promise<GeneratedImageBytes> {
+  const provider = "imagen-4.0-generate-001";
+  let response: Response;
+  try {
+    response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${provider}:predict`,
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          instances: [{ prompt: recipeImagePrompt(recipe) }],
           parameters: {
             sampleCount: 1,
             aspectRatio: "4:3",
@@ -585,18 +707,17 @@ export async function generateRecipeThumbnail(
   } catch (error) {
     if (error instanceof Error && error.name === "TimeoutError") {
       throw new RecipeAiError(
-        "IMAGEN_TIMEOUT",
-        "Imagen took too long to render the thumbnail. Try generating it again.",
+        "GOOGLE_IMAGE_TIMEOUT",
+        "Imagen took too long to render the thumbnail. Try again.",
         504,
       );
     }
     throw new RecipeAiError(
-      "IMAGEN_UNREACHABLE",
-      "Google Imagen could not be reached. Try the thumbnail again in a moment.",
+      "GOOGLE_IMAGE_UNREACHABLE",
+      "Google image generation could not be reached. Try again in a moment.",
       503,
     );
   }
-
   const responseText = await response.text();
   let payload: {
     predictions?: Array<{
@@ -604,55 +725,244 @@ export async function generateRecipeThumbnail(
       mimeType?: string;
       image?: { imageBytes?: string; mimeType?: string };
     }>;
-    generatedImages?: Array<{
-      image?: { imageBytes?: string; mimeType?: string };
-    }>;
     error?: { message?: string };
-    filteredReason?: string;
   } = {};
   try {
     payload = JSON.parse(responseText) as typeof payload;
   } catch {
     throw new RecipeAiError(
-      "IMAGEN_BAD_RESPONSE",
-      "Imagen returned an unreadable response. Try generating the thumbnail again.",
+      "GOOGLE_IMAGE_BAD_RESPONSE",
+      "Imagen returned an unreadable response.",
     );
   }
   if (!response.ok) {
     throw imageProviderError(
       response.status,
       payload.error?.message || responseText,
+      provider,
     );
   }
-
   const prediction = payload.predictions?.[0];
-  const generatedImage = payload.generatedImages?.[0]?.image;
   const base64 =
-    prediction?.bytesBase64Encoded ||
-    prediction?.image?.imageBytes ||
-    generatedImage?.imageBytes;
+    prediction?.bytesBase64Encoded || prediction?.image?.imageBytes || "";
   if (!base64) {
     throw new RecipeAiError(
-      "IMAGEN_NO_IMAGE",
-      payload.filteredReason
-        ? "Imagen filtered this thumbnail direction. Edit the image prompt and try again."
-        : "Imagen completed the request without returning an image. Try a simpler image direction.",
+      "GOOGLE_IMAGE_NO_IMAGE",
+      "Imagen completed without returning an image.",
       422,
     );
   }
-  const mimeType =
-    prediction?.mimeType ||
-    prediction?.image?.mimeType ||
-    generatedImage?.mimeType ||
-    "image/png";
-  const extension = mimeType.includes("jpeg") ? "jpg" : "png";
+  return {
+    base64,
+    mimeType:
+      prediction?.mimeType || prediction?.image?.mimeType || "image/png",
+    provider,
+  };
+}
+
+async function generateWithPollinations(
+  recipe: RecipeThumbnailRequest,
+  timeoutMs: number,
+): Promise<GeneratedImageBytes> {
+  const prompt = recipeImagePrompt(recipe);
+  const url = new URL(
+    `https://gen.pollinations.ai/image/${encodeURIComponent(prompt)}`,
+  );
+  url.searchParams.set("width", "1024");
+  url.searchParams.set("height", "768");
+  url.searchParams.set("seed", String(Date.now() % 2_147_483_647));
+  const pollinationsKey = process.env.POLLINATIONS_API_KEY?.trim();
+  if (!pollinationsKey) {
+    throw new RecipeAiError(
+      "FREE_IMAGE_NOT_CONFIGURED",
+      "Free thumbnail generation needs a Pollinations API key. Creating the key does not require payment or a card.",
+      503,
+    );
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        Accept: "image/avif,image/webp,image/jpeg,image/png",
+        Authorization: `Bearer ${pollinationsKey}`,
+      },
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new RecipeAiError(
+        "FREE_IMAGE_TIMEOUT",
+        "The free community image renderer took too long. Try the thumbnail again.",
+        504,
+      );
+    }
+    throw new RecipeAiError(
+      "FREE_IMAGE_UNREACHABLE",
+      "The free community image renderer is temporarily unreachable.",
+      503,
+    );
+  }
+
+  const mimeType = response.headers.get("content-type")?.split(";")[0] || "";
+  if (!response.ok || !mimeType.startsWith("image/")) {
+    const message = await response.text().catch(() => "");
+    console.error("Pollinations thumbnail request failed", {
+      status: response.status,
+      message: message.slice(0, 240),
+    });
+    throw new RecipeAiError(
+      response.status === 429
+        ? "FREE_IMAGE_RATE_LIMIT"
+        : "FREE_IMAGE_REQUEST_FAILED",
+      response.status === 429
+        ? "The free image renderer is busy or rate-limited. Wait a moment and retry."
+        : "The free image renderer could not complete this thumbnail.",
+      response.status === 429 ? 429 : 502,
+    );
+  }
+
+  return {
+    base64: Buffer.from(await response.arrayBuffer()).toString("base64"),
+    mimeType,
+    provider: "pollinations-free",
+  };
+}
+
+export async function generateRecipeThumbnail(
+  recipe: RecipeThumbnailRequest,
+  timeoutMs = 45_000,
+): Promise<{ url: string; provider: string }> {
+  const apiKey = process.env.GEMINI_API_KEY?.trim();
+  const pollinationsKey = process.env.POLLINATIONS_API_KEY?.trim();
+  const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  if (!pollinationsKey && !apiKey) {
+    throw new RecipeAiError(
+      "IMAGE_PROVIDER_NOT_CONFIGURED",
+      "Add a free POLLINATIONS_API_KEY, or configure GEMINI_API_KEY as an optional paid fallback.",
+      503,
+    );
+  }
+  if (!blobToken) {
+    throw new RecipeAiError(
+      "BLOB_NOT_CONFIGURED",
+      "Thumbnail storage needs BLOB_READ_WRITE_TOKEN in the Vercel project.",
+      503,
+    );
+  }
+
+  const startedAt = Date.now();
+  const preferredModel =
+    process.env.GEMINI_IMAGE_MODEL?.trim() || "gemini-3.1-flash-image";
+  const attempts: Array<{
+    provider: string;
+    run: (remainingMs: number) => Promise<GeneratedImageBytes>;
+  }> = [
+    ...(pollinationsKey
+      ? [
+          {
+            provider: "pollinations-free",
+            run: (remainingMs: number) =>
+              generateWithPollinations(recipe, remainingMs),
+          },
+        ]
+      : []),
+    ...(apiKey
+      ? [
+            {
+              provider: preferredModel,
+              run: (remainingMs: number) =>
+                generateWithGeminiImage(
+                  recipe,
+                  apiKey,
+                  preferredModel,
+                  remainingMs,
+                ),
+            },
+            ...(preferredModel === "gemini-2.5-flash-image"
+              ? []
+              : [
+                  {
+                    provider: "gemini-2.5-flash-image",
+                    run: (remainingMs: number) =>
+                      generateWithGeminiImage(
+                        recipe,
+                        apiKey,
+                        "gemini-2.5-flash-image",
+                        remainingMs,
+                      ),
+                  },
+                ]),
+            {
+              provider: "imagen-4.0-generate-001",
+              run: (remainingMs: number) =>
+                generateWithImagen(recipe, apiKey, remainingMs),
+            },
+        ]
+      : []),
+  ];
+
+  let generated: GeneratedImageBytes | null = null;
+  let lastError: RecipeAiError | null = null;
+  for (const attempt of attempts) {
+    const remainingMs = timeoutMs - (Date.now() - startedAt);
+    if (remainingMs < 4_000) break;
+    try {
+      generated = await attempt.run(remainingMs);
+      break;
+    } catch (error) {
+      lastError =
+        error instanceof RecipeAiError
+          ? error
+          : new RecipeAiError(
+              "IMAGE_PROVIDER_UNKNOWN",
+              "The image provider failed unexpectedly.",
+            );
+      console.error("Recipe thumbnail provider failed", {
+        provider: attempt.provider,
+        code: lastError.code,
+        status: lastError.status,
+        message: lastError.message,
+      });
+      if (
+        [
+          "GOOGLE_IMAGE_KEY_REJECTED",
+          "GOOGLE_IMAGE_BILLING_REQUIRED",
+          "GOOGLE_IMAGE_RATE_LIMIT",
+          "GOOGLE_IMAGE_REGION_UNAVAILABLE",
+          "GOOGLE_IMAGE_TIMEOUT",
+        ].includes(lastError.code)
+      ) {
+        continue;
+      }
+    }
+  }
+  if (!generated) {
+    throw (
+      lastError ||
+      new RecipeAiError(
+        "IMAGE_GENERATION_TIMEOUT",
+        "The image models did not finish before the request deadline. Retry the thumbnail separately.",
+        504,
+      )
+    );
+  }
+
+  const mimeType = generated.mimeType;
+  const extension = mimeType.includes("jpeg")
+    ? "jpg"
+    : mimeType.includes("webp")
+      ? "webp"
+      : mimeType.includes("avif")
+        ? "avif"
+        : "png";
   try {
     const blob = await put(
       `recipes/ai/${Date.now()}-${recipe.title
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "")}.${extension}`,
-      Buffer.from(base64, "base64"),
+      Buffer.from(generated.base64, "base64"),
       {
         access: "public",
         addRandomSuffix: true,
@@ -660,11 +970,15 @@ export async function generateRecipeThumbnail(
         token: blobToken,
       },
     );
-    return blob.url;
-  } catch {
+    return { url: blob.url, provider: generated.provider };
+  } catch (error) {
+    console.error("Recipe thumbnail Blob upload failed", {
+      provider: generated.provider,
+      message: error instanceof Error ? error.message : "Unknown Blob error",
+    });
     throw new RecipeAiError(
       "BLOB_UPLOAD_FAILED",
-      "Imagen created the thumbnail, but Vercel Blob could not store it. Reconnect the Blob store and retry.",
+      "The thumbnail was created, but Vercel Blob could not store it. Reconnect the Blob store and retry.",
       502,
     );
   }
@@ -679,9 +993,15 @@ export async function generateRecipePackage(
     calculateUsdaNutrition(generated),
     request.generateImage
       ? generateRecipeThumbnail(generated, 24_000)
-          .then((image) => ({ image, warning: "", code: "" }))
+          .then((result) => ({
+            image: result.url,
+            imageProvider: result.provider,
+            warning: "",
+            code: "",
+          }))
           .catch((error: unknown) => ({
             image: "",
+            imageProvider: "",
             warning:
               error instanceof RecipeAiError
                 ? error.message
@@ -693,6 +1013,7 @@ export async function generateRecipePackage(
           }))
       : Promise.resolve({
           image: "",
+          imageProvider: "",
           warning: "",
           code: "IMAGE_DISABLED",
         }),
@@ -718,7 +1039,7 @@ export async function generateRecipePackage(
     providers: {
       recipe: process.env.DEEPSEEK_MODEL?.trim() || "deepseek-v4-pro",
       nutrition: nutrition.source,
-      image: image ? "Google Imagen 4" : null,
+      image: image ? imageResult.imageProvider : null,
     },
     imageGeneration: {
       status: image

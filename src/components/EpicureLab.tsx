@@ -80,6 +80,7 @@ type EpicureBrief = {
   texture: "fudgy" | "creamy" | "crisp" | "airy" | "chewy";
   vegetarian: boolean;
   plantBased: boolean;
+  zeroAddedSugar: boolean;
   generateImage: boolean;
 };
 
@@ -188,6 +189,7 @@ export function EpicureLab({
       texture: "fudgy",
       vegetarian: initialDietary.includes("vegetarian"),
       plantBased: initialDietary.includes("vegan"),
+      zeroAddedSugar: initialDietary.includes("zero-added-sugar"),
       generateImage: true,
     };
     try {
@@ -471,14 +473,16 @@ export function EpicureLab({
         </span>
         <span className={providers?.image ? "is-ready" : ""}>
           <ImageIcon size={16} />
-          <span>Imagen thumbnail</span>
+          <span>AI thumbnail</span>
           <small>
-            {providers?.image
-              ? "configured"
-              : providers?.missing.image.includes("GEMINI_API_KEY")
-                ? "add Gemini key"
-                : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
+            {providers?.freeImage
+              ? "free renderer ready"
+              : providers?.image
+                ? "Google fallback only"
+              : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
                   ? "connect Blob"
+                  : providers?.missing.image.includes("POLLINATIONS_API_KEY")
+                    ? "add free image key"
                   : "checking"}
           </small>
         </span>
@@ -841,6 +845,20 @@ export function EpicureLab({
               Plant-based
               {brief.plantBased && <Check size={13} />}
             </button>
+            <button
+              type="button"
+              className={brief.zeroAddedSugar ? "is-active" : ""}
+              onClick={() =>
+                setBrief((current) => ({
+                  ...current,
+                  zeroAddedSugar: !current.zeroAddedSugar,
+                }))
+              }
+            >
+              <Sparkles size={15} />
+              Zero added sugar
+              {brief.zeroAddedSugar && <Check size={13} />}
+            </button>
           </div>
 
           <label className="epicure-special-request">
@@ -876,10 +894,12 @@ export function EpicureLab({
               <strong>Generate an editorial thumbnail</strong>
               <small>
                 {providers?.image
-                  ? "Google Imagen 4, uploaded to your Vercel Blob store"
-                  : providers?.missing.image.includes("GEMINI_API_KEY")
-                    ? "Optional: add GEMINI_API_KEY in Vercel to enable"
-                    : "Optional image generation provider"}
+                  ? providers.freeImage
+                    ? "Free community rendering, stored in Vercel Blob"
+                    : "Google fallback configured; add Pollinations for free rendering"
+                  : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
+                    ? "Connect Vercel Blob to store generated thumbnails"
+                    : "Add a free Pollinations key; no card is required"}
               </small>
             </span>
             <i />
@@ -981,7 +1001,7 @@ export function EpicureLab({
               <h5>Turn this graph into a complete recipe.</h5>
               <p>
                 DeepSeek writes the draft, USDA calculates nutrition when
-                available, and Imagen can plate the thumbnail.
+                available, and the configured image renderer plates the thumbnail.
               </p>
               <button
                 type="button"

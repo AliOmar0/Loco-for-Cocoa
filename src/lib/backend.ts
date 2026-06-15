@@ -7,6 +7,7 @@ import type {
   RecipeMood,
   RecipeStep,
   RecipeCollection,
+  RecipeTranslation,
 } from "../types";
 
 const deployedOnVercel =
@@ -55,6 +56,7 @@ export type AiRecipeRequest = {
   pairingIntent: "comfort" | "balanced" | "adventurous";
   sweetness: number;
   texture: "fudgy" | "creamy" | "crisp" | "airy" | "chewy";
+  zeroAddedSugar: boolean;
   vegetarian: boolean;
   plantBased: boolean;
   generateImage: boolean;
@@ -101,12 +103,13 @@ export type AiProviderStatus = {
   recipe: boolean;
   nutrition: boolean;
   image: boolean;
+  freeImage: boolean;
   missing: {
     recipe: string[];
     nutrition: string[];
     image: string[];
   };
-  models: { recipe: string; image: string };
+  models: { recipe: string; image: string; imageFallback?: string };
 };
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
@@ -176,7 +179,7 @@ export function getPublicArchive() {
   return request<CloudArchive>("/api/public/archive");
 }
 
-function getVisitorId() {
+export function getVisitorId() {
   const storageKey = "loco-for-cocoa-visitor";
   const existing = window.localStorage.getItem(storageKey);
   if (existing) return existing;
@@ -191,6 +194,43 @@ export function recordRecipeView(recipeId: string) {
     method: "POST",
     body: JSON.stringify({ recipeId, visitorId: getVisitorId() }),
   });
+}
+
+export function setRecipeSaved(recipeId: string, saved: boolean) {
+  if (!backendConfigured) {
+    return Promise.resolve({ ok: true, saved, saves: -1 });
+  }
+  return request<{ ok: boolean; saved: boolean; saves: number }>(
+    "/api/public/saves",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        recipeId,
+        visitorId: getVisitorId(),
+        saved,
+      }),
+    },
+  );
+}
+
+export function getRecipeTranslation(
+  recipeId: string,
+  language: "ar",
+) {
+  if (!backendConfigured) {
+    return Promise.reject(
+      new Error(
+        "Arabic translation is available when the site is connected to its Vercel backend.",
+      ),
+    );
+  }
+  return request<{ translation: RecipeTranslation; cached: boolean }>(
+    "/api/public/translation",
+    {
+      method: "POST",
+      body: JSON.stringify({ recipeId, language }),
+    },
+  );
 }
 
 export function syncArchive(

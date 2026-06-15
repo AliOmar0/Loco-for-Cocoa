@@ -101,10 +101,16 @@ export function RecipeCard({
           <h3>{recipe.title}</h3>
           <p>{recipe.subtitle}</p>
           <div className="recipe-card-footer">
-            <span className="rating">
-              <Star size={13} fill="currentColor" />
-              {recipe.rating}
-            </span>
+            <div className="recipe-card-social-proof">
+              <span className="rating">
+                <Star size={13} fill="currentColor" />
+                {recipe.rating}
+              </span>
+              <span className="community-save-count">
+                <Heart size={12} fill="currentColor" />
+                {recipe.saves.toLocaleString()}
+              </span>
+            </div>
             <span className="open-label">
               Open recipe
               <ArrowUpRight size={16} />

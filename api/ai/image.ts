@@ -20,7 +20,7 @@ export default {
       await requireOwner(request);
       const parsed = recipeThumbnailRequestSchema.parse(await request.json());
       const image = await generateRecipeThumbnail(parsed);
-      return json(request, { image, provider: "Google Imagen 4" });
+      return json(request, { image: image.url, provider: image.provider });
     } catch (error) {
       if (error instanceof Error && error.message === "UNAUTHORIZED") {
         return json(request, { error: "Your Studio session has expired." }, 401);

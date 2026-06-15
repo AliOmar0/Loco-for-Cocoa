@@ -31,3 +31,12 @@ export const recipeViewSchema = z.object({
   recipeId: z.string().min(1).max(180),
   visitorId: z.string().min(8).max(180),
 });
+
+export const recipeSaveSchema = recipeViewSchema.extend({
+  saved: z.boolean(),
+});
+
+export const recipeTranslationRequestSchema = z.object({
+  recipeId: z.string().min(1).max(180),
+  language: z.literal("ar"),
+});

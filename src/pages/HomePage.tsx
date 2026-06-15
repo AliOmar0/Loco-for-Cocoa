@@ -12,6 +12,7 @@ import { PantryMatcher } from "../components/PantryMatcher";
 import { RecipeExplorer } from "../components/RecipeExplorer";
 import { RecipeHistoryRails } from "../components/RecipeHistoryRails";
 import { SiteHeader } from "../components/SiteHeader";
+import { setRecipeSaved } from "../lib/backend";
 import { useExperienceStore } from "../store/useExperienceStore";
 import { useRecipeStore } from "../store/useRecipeStore";
 import type { Recipe } from "../types";
@@ -20,7 +21,10 @@ export function HomePage() {
   const recipes = useRecipeStore((state) => state.recipes);
   const collections = useRecipeStore((state) => state.collections);
   const favorites = useRecipeStore((state) => state.favorites);
-  const toggleFavorite = useRecipeStore((state) => state.toggleFavorite);
+  const setFavorite = useRecipeStore((state) => state.setFavorite);
+  const setRecipeSaveCount = useRecipeStore(
+    (state) => state.setRecipeSaveCount,
+  );
   const recentlyViewed = useExperienceStore((state) => state.recentlyViewed);
   const bakeSessions = useExperienceStore((state) => state.bakeSessions);
   const navigate = useNavigate();
@@ -59,6 +63,23 @@ export function HomePage() {
     const recipe = published[Math.floor(Math.random() * published.length)];
     if (recipe) openRecipe(recipe);
   }, [openRecipe, published]);
+
+  const toggleFavorite = useCallback(
+    (recipeId: string) => {
+      const wasSaved = favorites.includes(recipeId);
+      const nextSaved = !wasSaved;
+      setFavorite(recipeId, nextSaved);
+      setRecipeSaved(recipeId, nextSaved)
+        .then((result) => {
+          if (result.saves >= 0) setRecipeSaveCount(recipeId, result.saves);
+        })
+        .catch((error) => {
+          setFavorite(recipeId, wasSaved);
+          console.error("Unable to update recipe save:", error);
+        });
+    },
+    [favorites, setFavorite, setRecipeSaveCount],
+  );
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {

@@ -66,6 +66,63 @@
   color: var(--cherry) !important;
 }
 
+.recipe-language-switch {
+  display: inline-flex;
+  padding: 3px;
+  gap: 3px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 250, 242, 0.88);
+}
+
+.recipe-page .detail-rail .recipe-language-switch button {
+  width: auto;
+  min-width: 40px;
+  height: 30px;
+  padding: 0 9px;
+  gap: 5px;
+  border: 0;
+  border-radius: 999px;
+  color: var(--ink-soft);
+  font-family: var(--sans);
+  font-size: 9px;
+}
+
+.recipe-page .detail-rail .recipe-language-switch button.is-active {
+  background: var(--cocoa);
+  color: white;
+}
+
+.recipe-page .detail-rail .recipe-language-switch button:disabled {
+  cursor: wait;
+  opacity: 0.72;
+}
+
+.recipe-translation-error {
+  margin: 0;
+  padding: 10px clamp(14px, 3vw, 42px);
+  border-bottom: 1px solid rgba(210, 45, 75, 0.18);
+  background: rgba(240, 167, 179, 0.18);
+  color: #7f1d32;
+  font-size: 11px;
+  text-align: center;
+}
+
+.recipe-card-social-proof {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.community-save-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 8px;
+}
+
 .recipe-extras-panel {
   overflow: hidden;
   margin-top: 12px;
@@ -3032,6 +3089,73 @@ img {
   font-family: var(--mono);
   font-size: 6px;
   text-transform: uppercase;
+}
+
+.detail-score small {
+  display: inline-flex;
+  margin-top: 7px;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 6px;
+}
+
+.recipe-detail.is-rtl {
+  font-family: Tahoma, Arial, sans-serif;
+}
+
+.recipe-detail.is-rtl .detail-rail > button svg {
+  transform: rotate(180deg);
+}
+
+.recipe-detail.is-rtl .detail-title {
+  text-align: right;
+}
+
+.recipe-detail.is-rtl .detail-title h2 {
+  max-width: 980px;
+  font-family: Tahoma, Arial, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.02;
+}
+
+.recipe-detail.is-rtl .detail-title p {
+  margin-right: 0;
+  margin-left: auto;
+  font-size: 14px;
+}
+
+.recipe-detail.is-rtl .detail-score {
+  right: auto;
+  left: 30px;
+}
+
+.recipe-detail.is-rtl .ingredient-panel {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+
+.recipe-detail.is-rtl .detail-meta-grid > div {
+  border-right: 0;
+  border-left: 1px solid var(--line);
+}
+
+.recipe-detail.is-rtl .detail-meta-grid > div:last-child {
+  border-left: 0;
+}
+
+.recipe-detail.is-rtl .ingredient-list li > button:first-child,
+.recipe-detail.is-rtl .method-panel,
+.recipe-detail.is-rtl .bakers-note,
+.recipe-detail.is-rtl .portion-personality,
+.recipe-detail.is-rtl .serving-control {
+  text-align: right;
+}
+
+.recipe-detail.is-rtl .detail-action-grid button small {
+  margin-right: auto;
+  margin-left: 0;
 }
 
 .detail-content {
@@ -9400,7 +9524,7 @@ html[data-visual-intensity="reduced"] .art-chip {
 .epicure-diet-modes {
   display: grid;
   margin-top: 14px;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 7px;
 }
 
