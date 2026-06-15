@@ -12,6 +12,10 @@
   },
   "rewrites": [
     {
+      "source": "/api/public/saves",
+      "destination": "/api/public/views?operation=save"
+    },
+    {
       "source": "/recipes/:path*",
       "destination": "/index.html"
     },
