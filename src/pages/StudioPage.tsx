@@ -486,7 +486,7 @@ function RecipeEditor({
         >
           <strong>{qualityScore}</strong>
         </div>
-        <div>
+        <div className="quality-copy">
           <span>Recipe readiness</span>
           <strong>
             {qualityScore >= 85
@@ -1570,7 +1570,9 @@ export function StudioPage() {
             className={studioView === "recipes" ? "is-active" : ""}
             onClick={() => setStudioView("recipes")}
           >
-            <LayoutDashboard size={17} />
+            <i className="studio-nav-icon">
+              <LayoutDashboard />
+            </i>
             Recipes
             <span>{recipes.length}</span>
           </button>
@@ -1578,7 +1580,9 @@ export function StudioPage() {
             className={studioView === "collections" ? "is-active" : ""}
             onClick={() => setStudioView("collections")}
           >
-            <Layers3 size={17} />
+            <i className="studio-nav-icon">
+              <Layers3 />
+            </i>
             Collections
             <span>{collectionsCount}</span>
           </button>
@@ -1586,7 +1590,9 @@ export function StudioPage() {
             className={studioView === "performance" ? "is-active" : ""}
             onClick={() => setStudioView("performance")}
           >
-            <BarChart3 size={17} />
+            <i className="studio-nav-icon">
+              <BarChart3 />
+            </i>
             Performance
             <span>{stats.live}</span>
           </button>
@@ -1594,7 +1600,9 @@ export function StudioPage() {
             className={studioView === "saves" ? "is-active" : ""}
             onClick={() => setStudioView("saves")}
           >
-            <Heart size={17} />
+            <i className="studio-nav-icon">
+              <Heart />
+            </i>
             Community saves
             <span>{stats.saves > 999 ? `${Math.round(stats.saves / 1000)}k` : stats.saves}</span>
           </button>

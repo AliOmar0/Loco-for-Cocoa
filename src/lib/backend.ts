@@ -51,6 +51,10 @@ export type AiRecipeRequest = {
   servings: number;
   cuisine: string;
   specialRequests: string;
+  avoidIngredients: string[];
+  pairingIntent: "comfort" | "balanced" | "adventurous";
+  sweetness: number;
+  texture: "fudgy" | "creamy" | "crisp" | "airy" | "chewy";
   vegetarian: boolean;
   plantBased: boolean;
   generateImage: boolean;
@@ -72,6 +76,7 @@ export type AiRecipeDraft = {
   steps: RecipeStep[];
   notes: string;
   nutrition: NutritionInfo;
+  imagePrompt: string;
   image?: string;
 };
 
@@ -82,6 +87,11 @@ export type AiRecipePackage = {
     recipe: string;
     nutrition: NutritionInfo["source"];
     image: string | null;
+  };
+  imageGeneration: {
+    status: "generated" | "failed" | "skipped";
+    code?: string;
+    message?: string;
   };
   warnings: string[];
 };
@@ -217,6 +227,17 @@ export function getEpicurePairings(
 
 export function generateAiRecipe(payload: AiRecipeRequest, token: string) {
   return request<AiRecipePackage>("/api/ai/recipe", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload),
+  });
+}
+
+export function generateAiRecipeImage(
+  payload: Pick<AiRecipeDraft, "title" | "imagePrompt">,
+  token: string,
+) {
+  return request<{ image: string; provider: string }>("/api/ai/image", {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     body: JSON.stringify(payload),

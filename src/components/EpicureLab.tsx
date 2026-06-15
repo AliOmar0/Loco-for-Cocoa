@@ -5,6 +5,7 @@ import {
   CircleAlert,
   ExternalLink,
   FlaskConical,
+  Gauge,
   Image as ImageIcon,
   Leaf,
   LoaderCircle,
@@ -18,7 +19,14 @@ import {
   X,
 } from "lucide-react";
 import { motion } from "motion/react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useDeferredValue,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import {
   epicureIngredientCategories,
   epicureIngredients,
@@ -26,6 +34,7 @@ import {
 import {
   backendConfigured,
   generateAiRecipe,
+  generateAiRecipeImage,
   getAiProviderStatus,
   getEpicurePairings,
   type AiProviderStatus,
@@ -65,6 +74,10 @@ type EpicureBrief = {
   servings: number;
   cuisine: string;
   specialRequests: string;
+  avoidIngredients: string[];
+  pairingIntent: "comfort" | "balanced" | "adventurous";
+  sweetness: number;
+  texture: "fudgy" | "creamy" | "crisp" | "airy" | "chewy";
   vegetarian: boolean;
   plantBased: boolean;
   generateImage: boolean;
@@ -169,6 +182,10 @@ export function EpicureLab({
       servings: initialServings,
       cuisine: "",
       specialRequests: "",
+      avoidIngredients: [],
+      pairingIntent: "balanced",
+      sweetness: 3,
+      texture: "fudgy",
       vegetarian: initialDietary.includes("vegetarian"),
       plantBased: initialDietary.includes("vegan"),
       generateImage: true,
@@ -188,9 +205,12 @@ export function EpicureLab({
   const [providers, setProviders] = useState<AiProviderStatus | null>(null);
   const [pairingBusy, setPairingBusy] = useState(false);
   const [generationBusy, setGenerationBusy] = useState(false);
+  const [imageBusy, setImageBusy] = useState(false);
+  const [imageError, setImageError] = useState("");
   const [status, setStatus] = useState("");
   const [fallbackJson, setFallbackJson] = useState("");
   const labGridRef = useRef<HTMLDivElement>(null);
+  const deferredQuery = useDeferredValue(query);
 
   useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify(brief));
@@ -246,7 +266,7 @@ export function EpicureLab({
   }, []);
 
   const searchResults = useMemo(() => {
-    const normalized = query.trim().toLowerCase().replace(/\s+/g, "_");
+    const normalized = deferredQuery.trim().toLowerCase().replace(/\s+/g, "_");
     if (!normalized && categoryFilter === "All") return [];
     return epicureIngredients
       .filter(
@@ -266,11 +286,29 @@ export function EpicureLab({
           ),
       )
       .slice(0, 24);
-  }, [brief.ingredients, categoryFilter, query]);
+  }, [brief.ingredients, categoryFilter, deferredQuery]);
+
+  const briefReadiness = useMemo(() => {
+    const checks = [
+      brief.ingredients.length >= 2,
+      Boolean(brief.category),
+      Boolean(brief.texture),
+      Boolean(brief.pairingIntent),
+      brief.servings > 0,
+      providers?.recipe ?? false,
+    ];
+    return Math.round(
+      (checks.filter(Boolean).length / checks.length) * 100,
+    );
+  }, [brief, providers?.recipe]);
 
   const addIngredient = (value: string) => {
     const normalized = ingredientName(value);
     if (!normalized) return;
+    if (brief.ingredients.length >= 12) {
+      setStatus("The flavour graph supports up to 12 anchor ingredients.");
+      return;
+    }
     setBrief((current) =>
       current.ingredients.some(
         (ingredient) => ingredient.toLowerCase() === normalized,
@@ -322,12 +360,14 @@ export function EpicureLab({
     setGenerationBusy(true);
     setGenerated(null);
     setWarnings([]);
+    setImageError("");
     setStatus("Mapping flavour relationships and developing the recipe...");
     try {
       const result = await generateAiRecipe(brief, authToken);
       setGenerated(result.recipe);
       setPairings(result.pairings);
       setWarnings(result.warnings);
+      setImageError(result.imageGeneration.message || "");
       setStatus(
         `${result.recipe.title} is ready to review before it enters the editor.`,
       );
@@ -339,6 +379,40 @@ export function EpicureLab({
       );
     } finally {
       setGenerationBusy(false);
+    }
+  };
+
+  const requestThumbnail = async () => {
+    if (!generated) return;
+    setImageBusy(true);
+    setImageError("");
+    try {
+      const result = await generateAiRecipeImage(
+        {
+          title: generated.title,
+          imagePrompt: generated.imagePrompt,
+        },
+        authToken,
+      );
+      setGenerated((current) =>
+        current ? { ...current, image: result.image } : current,
+      );
+      setWarnings((current) =>
+        current.filter(
+          (warning) =>
+            !/imagen|thumbnail|blob|gemini/i.test(warning),
+        ),
+      );
+      setStatus("The new thumbnail is stored in Vercel Blob and attached.");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "The thumbnail could not be generated.";
+      setImageError(message);
+      setStatus(message);
+    } finally {
+      setImageBusy(false);
     }
   };
 
@@ -400,7 +474,7 @@ export function EpicureLab({
           <span>Imagen thumbnail</span>
           <small>
             {providers?.image
-              ? "ready"
+              ? "configured"
               : providers?.missing.image.includes("GEMINI_API_KEY")
                 ? "add Gemini key"
                 : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
@@ -408,6 +482,33 @@ export function EpicureLab({
                   : "checking"}
           </small>
         </span>
+      </div>
+
+      <div className="epicure-brief-dashboard">
+        <div className="epicure-readiness-ring">
+          <Gauge size={20} />
+          <span>
+            <strong>{briefReadiness}%</strong>
+            brief ready
+          </span>
+        </div>
+        <div>
+          <span>Anchors</span>
+          <strong>{brief.ingredients.length}/12</strong>
+        </div>
+        <div>
+          <span>Direction</span>
+          <strong>{brief.pairingIntent}</strong>
+        </div>
+        <div>
+          <span>Finish</span>
+          <strong>{brief.texture}</strong>
+        </div>
+        <p>
+          {brief.ingredients.length >= 2
+            ? "The brief has enough structure to generate."
+            : "Choose at least two anchors for a more intentional result."}
+        </p>
       </div>
 
       <div className="epicure-lab-grid" ref={labGridRef}>
@@ -588,6 +689,79 @@ export function EpicureLab({
             </div>
           </fieldset>
 
+          <fieldset>
+            <legend>Pairing personality</legend>
+            <div className="epicure-segmented-control">
+              {(
+                [
+                  ["comfort", "Familiar"],
+                  ["balanced", "Curious"],
+                  ["adventurous", "Wild"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={brief.pairingIntent === value ? "is-active" : ""}
+                  onClick={() =>
+                    setBrief((current) => ({
+                      ...current,
+                      pairingIntent: value,
+                    }))
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Texture target</legend>
+            <div className="epicure-texture-grid">
+              {(
+                ["fudgy", "creamy", "crisp", "airy", "chewy"] as const
+              ).map((texture) => (
+                <button
+                  type="button"
+                  key={texture}
+                  className={brief.texture === texture ? "is-active" : ""}
+                  onClick={() =>
+                    setBrief((current) => ({ ...current, texture }))
+                  }
+                >
+                  {texture}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <label className="epicure-sweetness">
+            <span>
+              Sweetness
+              <strong>{brief.sweetness}/5</strong>
+            </span>
+            <input
+              type="range"
+              min="1"
+              max="5"
+              value={brief.sweetness}
+              onChange={(event) =>
+                setBrief((current) => ({
+                  ...current,
+                  sweetness: Number(event.target.value),
+                }))
+              }
+            />
+            <small>
+              {brief.sweetness <= 2
+                ? "Subtle and cocoa-forward"
+                : brief.sweetness >= 4
+                  ? "Decadent dessert energy"
+                  : "Balanced sweetness"}
+            </small>
+          </label>
+
           <div className="epicure-brief-fields">
             <label>
               <span>Servings</span>
@@ -618,6 +792,25 @@ export function EpicureLab({
               />
             </label>
           </div>
+
+          <label className="epicure-avoid-list">
+            <span>Avoid ingredients</span>
+            <input
+              value={brief.avoidIngredients.join(", ")}
+              onChange={(event) =>
+                setBrief((current) => ({
+                  ...current,
+                  avoidIngredients: event.target.value
+                    .split(",")
+                    .map((item) => item.trim())
+                    .filter(Boolean)
+                    .slice(0, 20),
+                }))
+              }
+              placeholder="Peanuts, alcohol, gelatin..."
+            />
+            <small>Comma-separated. These stay out of the generated draft.</small>
+          </label>
 
           <div className="epicure-diet-modes">
             <button
@@ -807,6 +1000,14 @@ export function EpicureLab({
                 )}
                 {generationBusy ? "Developing recipe..." : "Generate recipe"}
               </button>
+              {generationBusy && (
+                <div className="epicure-generation-progress" aria-live="polite">
+                  <span className="is-active">Map flavor graph</span>
+                  <span className="is-active">Develop ratios</span>
+                  <span>Calculate nutrition</span>
+                  <span>Plate thumbnail</span>
+                </div>
+              )}
               {providers && !providers.recipe && (
                 <small className="epicure-provider-help">
                   Add <code>DEEPSEEK_API_KEY</code> in Vercel, then redeploy to
@@ -817,11 +1018,18 @@ export function EpicureLab({
           ) : (
             <article className="epicure-generated-card">
               {generated.image ? (
-                <img src={generated.image} alt="" />
+                <img
+                  src={generated.image}
+                  alt={`AI-generated editorial preview for ${generated.title}`}
+                />
               ) : (
                 <div className="epicure-generated-placeholder">
                   <ImageIcon size={26} />
-                  <span>Thumbnail was not generated</span>
+                  <strong>Recipe ready. Thumbnail needs attention.</strong>
+                  <span>
+                    The draft is safe to use; image generation can be retried
+                    separately.
+                  </span>
                 </div>
               )}
               <div className="epicure-generated-copy">
@@ -851,6 +1059,51 @@ export function EpicureLab({
                     ? ` · ${generated.nutrition.coverage}`
                     : ""}
                 </small>
+                <div className="epicure-thumbnail-workbench">
+                  <label>
+                    <span>Thumbnail direction</span>
+                    <textarea
+                      rows={3}
+                      value={generated.imagePrompt}
+                      onChange={(event) =>
+                        setGenerated((current) =>
+                          current
+                            ? {
+                                ...current,
+                                imagePrompt: event.target.value,
+                              }
+                            : current,
+                        )
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    disabled={
+                      imageBusy ||
+                      !providers?.image ||
+                      generated.imagePrompt.trim().length < 10
+                    }
+                    onClick={requestThumbnail}
+                  >
+                    {imageBusy ? (
+                      <LoaderCircle className="is-spinning" size={16} />
+                    ) : (
+                      <ImageIcon size={16} />
+                    )}
+                    {imageBusy
+                      ? "Rendering..."
+                      : generated.image
+                        ? "Regenerate thumbnail"
+                        : "Generate thumbnail"}
+                  </button>
+                </div>
+                {imageError && (
+                  <p className="epicure-image-error" role="alert">
+                    <CircleAlert size={15} />
+                    {imageError}
+                  </p>
+                )}
               </div>
               <div className="epicure-generated-actions">
                 <button
@@ -880,12 +1133,16 @@ export function EpicureLab({
           )}
 
           {warnings.map((warning) => (
-            <p className="epicure-warning" key={warning}>
+            <p className="epicure-warning" key={warning} role="alert">
               <CircleAlert size={14} />
               {warning}
             </p>
           ))}
-          {status && <p className="epicure-status">{status}</p>}
+          {status && (
+            <p className="epicure-status" aria-live="polite">
+              {status}
+            </p>
+          )}
 
           <details className="epicure-import">
             <summary>Manual JSON fallback</summary>

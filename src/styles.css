@@ -6301,6 +6301,23 @@ img {
   font-size: 9px;
 }
 
+.quality-copy span,
+.quality-copy strong {
+  display: block;
+}
+
+.quality-copy span {
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 6px;
+  text-transform: uppercase;
+}
+
+.quality-copy strong {
+  margin-top: 3px;
+  font-size: 9px;
+}
+
 .editor-quality-strip > button {
   display: inline-flex;
   min-height: 34px;
@@ -8425,6 +8442,560 @@ html[data-visual-intensity="reduced"] .art-chip {
 
   .recipe-page .detail-hero {
     min-height: 560px;
+  }
+}
+
+/* Studio navigation and Epicure Lab refinement */
+
+.studio-sidebar {
+  width: 264px;
+  padding: 24px 18px;
+}
+
+.studio-workspace {
+  margin-left: 264px;
+}
+
+.studio-wordmark {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+}
+
+.studio-wordmark > span {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.studio-wordmark > span svg {
+  width: 21px;
+  height: 21px;
+}
+
+.studio-sidebar nav {
+  gap: 8px;
+}
+
+.studio-sidebar nav button {
+  min-height: 58px;
+  padding: 6px 10px;
+  gap: 11px;
+  border-radius: 15px;
+  font-size: 10px;
+  font-weight: 650;
+}
+
+.studio-sidebar nav button.is-active {
+  background:
+    linear-gradient(100deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.07));
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+
+.studio-nav-icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.055);
+  color: rgba(255, 255, 255, 0.72);
+  font-style: normal;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.studio-nav-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.8;
+}
+
+.studio-sidebar nav button:hover .studio-nav-icon,
+.studio-sidebar nav button.is-active .studio-nav-icon {
+  border-color: rgba(255, 214, 170, 0.22);
+  background: rgba(255, 214, 170, 0.13);
+  color: #ffd8ad;
+  transform: translateY(-1px);
+}
+
+.studio-sidebar nav button > span {
+  min-width: 25px;
+  height: 25px;
+  font-size: 7px;
+}
+
+.sidebar-bottom {
+  gap: 6px;
+}
+
+.sidebar-bottom button,
+.sidebar-bottom a {
+  min-height: 46px;
+  padding-inline: 12px;
+  border-radius: 12px;
+  font-size: 8px;
+}
+
+.sidebar-bottom button > svg,
+.sidebar-bottom a > svg {
+  width: 20px;
+  height: 20px;
+  flex: 0 0 auto;
+  stroke-width: 1.8;
+}
+
+.epicure-brief-dashboard {
+  display: grid;
+  margin-top: 10px;
+  padding: 12px;
+  grid-template-columns: 1.3fr repeat(3, minmax(90px, 0.8fr)) minmax(220px, 1.8fr);
+  align-items: stretch;
+  gap: 8px;
+  border: 1px solid rgba(45, 18, 12, 0.1);
+  border-radius: 17px;
+  background: rgba(255, 255, 255, 0.66);
+  box-shadow: 0 15px 38px rgba(55, 24, 17, 0.055);
+}
+
+.epicure-lab {
+  container-type: inline-size;
+}
+
+.epicure-brief-dashboard > div,
+.epicure-brief-dashboard > p {
+  min-width: 0;
+  margin: 0;
+  padding: 11px 13px;
+  border-radius: 12px;
+  background: #fffaf3;
+}
+
+.epicure-brief-dashboard > div:not(.epicure-readiness-ring) {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+}
+
+.epicure-brief-dashboard span {
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.epicure-brief-dashboard strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  text-transform: capitalize;
+  white-space: nowrap;
+}
+
+.epicure-readiness-ring {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--cocoa-2) !important;
+  color: white;
+}
+
+.epicure-readiness-ring > svg {
+  width: 22px;
+  height: 22px;
+  color: var(--butter);
+}
+
+.epicure-readiness-ring > span {
+  display: grid;
+  color: rgba(255, 255, 255, 0.58);
+}
+
+.epicure-readiness-ring strong {
+  color: white;
+  font-family: var(--display);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.epicure-brief-dashboard > p {
+  display: flex;
+  align-items: center;
+  color: var(--ink-soft);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.epicure-lab .epicure-panel-heading > span > svg {
+  width: 21px;
+  height: 21px;
+  stroke-width: 1.8;
+}
+
+.epicure-segmented-control,
+.epicure-texture-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.epicure-segmented-control {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.epicure-texture-grid {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.epicure-segmented-control button,
+.epicure-texture-grid button {
+  min-height: 44px;
+  padding: 0 9px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: white;
+  color: var(--ink-soft);
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.epicure-segmented-control button:hover,
+.epicure-texture-grid button:hover {
+  border-color: rgba(216, 50, 82, 0.35);
+  color: var(--ink);
+}
+
+.epicure-segmented-control button.is-active,
+.epicure-texture-grid button.is-active {
+  border-color: var(--cherry);
+  background: rgba(216, 50, 82, 0.09);
+  color: var(--cherry);
+  box-shadow: inset 0 0 0 1px rgba(216, 50, 82, 0.08);
+}
+
+.epicure-sweetness,
+.epicure-avoid-list {
+  display: grid;
+  margin-top: 17px;
+  gap: 8px;
+}
+
+.epicure-sweetness > span,
+.epicure-avoid-list > span,
+.epicure-thumbnail-workbench label > span {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--ink-soft);
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.epicure-sweetness > span strong {
+  color: var(--cherry);
+  font-size: 8px;
+}
+
+.epicure-sweetness input[type="range"] {
+  width: 100%;
+  accent-color: var(--cherry);
+}
+
+.epicure-sweetness small,
+.epicure-avoid-list small {
+  color: var(--ink-soft);
+  font-size: 7px;
+}
+
+.epicure-avoid-list input {
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  outline: 0;
+  background: white;
+  color: var(--ink);
+  font-size: 8px;
+}
+
+.epicure-avoid-list input:focus,
+.epicure-thumbnail-workbench textarea:focus {
+  border-color: var(--cherry);
+  box-shadow: 0 0 0 3px rgba(216, 50, 82, 0.1);
+}
+
+.epicure-generation-progress {
+  display: grid;
+  width: min(100%, 440px);
+  margin-top: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.epicure-generation-progress span {
+  position: relative;
+  padding-top: 10px;
+  color: var(--ink-soft);
+  font-size: 6px;
+  line-height: 1.35;
+}
+
+.epicure-generation-progress span::before {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(45, 18, 12, 0.12);
+  content: "";
+}
+
+.epicure-generation-progress span.is-active::before {
+  background: var(--cherry);
+}
+
+.epicure-generated-placeholder {
+  padding: 26px;
+  text-align: center;
+}
+
+.epicure-generated-placeholder strong {
+  color: white;
+  font-family: var(--display);
+  font-size: 21px;
+  font-weight: 500;
+}
+
+.epicure-generated-placeholder span {
+  max-width: 330px;
+  color: rgba(255, 255, 255, 0.62);
+  font-size: 8px;
+  line-height: 1.55;
+}
+
+.epicure-thumbnail-workbench {
+  display: grid;
+  margin-top: 16px;
+  padding: 13px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 9px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--cream);
+}
+
+.epicure-thumbnail-workbench label {
+  display: grid;
+  gap: 7px;
+}
+
+.epicure-thumbnail-workbench textarea {
+  width: 100%;
+  min-height: 76px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  outline: 0;
+  background: white;
+  color: var(--ink);
+  font-size: 8px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.epicure-thumbnail-workbench button {
+  display: inline-flex;
+  min-height: 44px;
+  padding: 0 13px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--cocoa);
+  color: white;
+  font-size: 7px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.epicure-thumbnail-workbench button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.epicure-image-error {
+  display: flex;
+  margin: 10px 0 0;
+  padding: 10px 11px;
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid rgba(180, 45, 45, 0.18);
+  border-radius: 10px;
+  background: rgba(180, 45, 45, 0.07);
+  color: #8a2525;
+  font-size: 7px;
+  line-height: 1.5;
+}
+
+.epicure-image-error svg {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 1180px) and (min-width: 901px) {
+  .studio-sidebar {
+    width: 220px;
+    padding-inline: 13px;
+  }
+
+  .studio-workspace {
+    margin-left: 220px;
+  }
+
+  .studio-sidebar nav button {
+    padding-inline: 7px;
+    font-size: 8px;
+  }
+
+  .studio-nav-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .epicure-brief-dashboard {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .epicure-brief-dashboard > p {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 900px) {
+  .studio-sidebar {
+    width: auto;
+  }
+
+  .studio-workspace {
+    margin-left: 0;
+  }
+
+  .studio-sidebar nav button {
+    min-height: 48px;
+    padding: 4px 8px;
+  }
+
+  .studio-nav-icon {
+    width: 38px;
+    height: 38px;
+  }
+
+  .epicure-brief-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .epicure-brief-dashboard > p {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 620px) {
+  .studio-wordmark > span {
+    width: 44px;
+    height: 44px;
+  }
+
+  .studio-sidebar nav button {
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+  }
+
+  .studio-nav-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .studio-nav-icon svg {
+    width: 21px;
+    height: 21px;
+  }
+
+  .epicure-brief-dashboard {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .epicure-readiness-ring,
+  .epicure-brief-dashboard > p {
+    grid-column: 1 / -1;
+  }
+
+  .epicure-texture-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .epicure-segmented-control {
+    grid-template-columns: 1fr;
+  }
+
+  .epicure-thumbnail-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .epicure-thumbnail-workbench button {
+    width: 100%;
+  }
+
+  .epicure-generation-progress {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@container (max-width: 920px) {
+  .epicure-lab .epicure-lab-grid {
+    grid-auto-rows: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .epicure-lab .epicure-panel {
+    grid-row: auto !important;
+  }
+
+  .epicure-lab .epicure-brief-dashboard {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .epicure-lab .epicure-readiness-ring,
+  .epicure-lab .epicure-brief-dashboard > p {
+    grid-column: 1 / -1;
+  }
+}
+
+@container (max-width: 560px) {
+  .epicure-lab .epicure-texture-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .epicure-lab .epicure-segmented-control,
+  .epicure-lab .epicure-thumbnail-workbench {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -9,13 +9,29 @@ export const recipeGenerationRequestSchema = z.object({
   servings: z.number().int().min(1).max(40),
   cuisine: z.string().max(120).default(""),
   specialRequests: z.string().max(1200).default(""),
+  avoidIngredients: z.array(z.string().min(1).max(120)).max(20).default([]),
+  pairingIntent: z
+    .enum(["comfort", "balanced", "adventurous"])
+    .default("balanced"),
+  sweetness: z.number().int().min(1).max(5).default(3),
+  texture: z
+    .enum(["fudgy", "creamy", "crisp", "airy", "chewy"])
+    .default("fudgy"),
   vegetarian: z.boolean().default(false),
   plantBased: z.boolean().default(false),
   generateImage: z.boolean().default(true),
 });
 
+export const recipeThumbnailRequestSchema = z.object({
+  title: z.string().min(2).max(90),
+  imagePrompt: z.string().min(10).max(1800),
+});
+
 export type RecipeGenerationRequest = z.infer<
   typeof recipeGenerationRequestSchema
+>;
+export type RecipeThumbnailRequest = z.infer<
+  typeof recipeThumbnailRequestSchema
 >;
 
 export class RecipeAiError extends Error {
@@ -468,61 +484,190 @@ async function calculateUsdaNutrition(
   };
 }
 
-async function generateRecipeImage(recipe: GeneratedRecipe) {
+function imageProviderError(status: number, providerMessage: string) {
+  const message = providerMessage.toLowerCase();
+  if (status === 401 || status === 403) {
+    return new RecipeAiError(
+      "IMAGEN_KEY_REJECTED",
+      "Google rejected GEMINI_API_KEY. Replace the key in Vercel, confirm it can use Imagen, then redeploy.",
+      503,
+    );
+  }
+  if (
+    status === 402 ||
+    message.includes("billing") ||
+    message.includes("payment")
+  ) {
+    return new RecipeAiError(
+      "IMAGEN_BILLING_REQUIRED",
+      "Imagen needs billing enabled on the Google AI project attached to GEMINI_API_KEY.",
+      503,
+    );
+  }
+  if (status === 429 || message.includes("quota")) {
+    return new RecipeAiError(
+      "IMAGEN_RATE_LIMIT",
+      "Imagen has reached its current quota. Wait a moment or review the Google AI project quota.",
+      429,
+    );
+  }
+  if (
+    message.includes("location") ||
+    message.includes("region") ||
+    message.includes("country")
+  ) {
+    return new RecipeAiError(
+      "IMAGEN_REGION_UNAVAILABLE",
+      "Imagen is not available to this Google AI project or region. Use a supported project location.",
+      503,
+    );
+  }
+  if (message.includes("model") || message.includes("permission")) {
+    return new RecipeAiError(
+      "IMAGEN_MODEL_UNAVAILABLE",
+      "This Google AI project does not currently have access to Imagen 4. Check model access and billing.",
+      503,
+    );
+  }
+  return new RecipeAiError(
+    "IMAGEN_REQUEST_FAILED",
+    "Imagen rejected the thumbnail request. Try a simpler image direction or check the Google AI project.",
+    502,
+  );
+}
+
+export async function generateRecipeThumbnail(
+  recipe: RecipeThumbnailRequest,
+  timeoutMs = 45_000,
+): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
-  if (!apiKey || !blobToken) return null;
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
-    {
-      method: "POST",
-      signal: AbortSignal.timeout(20_000),
-      headers: {
-        "x-goog-api-key": apiKey,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        instances: [
-          {
-            prompt: `${recipe.imagePrompt}. A finished ${recipe.title}, cozy cinematic dessert editorial, macro food photography, 85mm lens, controlled warm window light, tactile crumbs and glossy texture, sophisticated cocoa-and-cream palette, no text, no logo, no people.`,
-          },
-        ],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "4:3",
-          personGeneration: "dont_allow",
+  if (!apiKey) {
+    throw new RecipeAiError(
+      "IMAGEN_NOT_CONFIGURED",
+      "Thumbnail generation needs GEMINI_API_KEY in the Vercel project.",
+      503,
+    );
+  }
+  if (!blobToken) {
+    throw new RecipeAiError(
+      "BLOB_NOT_CONFIGURED",
+      "Thumbnail storage needs BLOB_READ_WRITE_TOKEN in the Vercel project.",
+      503,
+    );
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      "https://generativelanguage.googleapis.com/v1beta/models/imagen-4.0-generate-001:predict",
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(timeoutMs),
+        headers: {
+          "x-goog-api-key": apiKey,
+          "Content-Type": "application/json",
         },
-      }),
-    },
-  );
-  if (!response.ok) return null;
-  const payload = (await response.json()) as {
+        body: JSON.stringify({
+          instances: [
+            {
+              prompt: `${recipe.imagePrompt}. A finished ${recipe.title}, cozy cinematic dessert editorial, macro food photography, 85mm lens, controlled warm window light, tactile crumbs and glossy texture, sophisticated cocoa-and-cream palette, no text, no logo, no people.`,
+            },
+          ],
+          parameters: {
+            sampleCount: 1,
+            aspectRatio: "4:3",
+            personGeneration: "dont_allow",
+          },
+        }),
+      },
+    );
+  } catch (error) {
+    if (error instanceof Error && error.name === "TimeoutError") {
+      throw new RecipeAiError(
+        "IMAGEN_TIMEOUT",
+        "Imagen took too long to render the thumbnail. Try generating it again.",
+        504,
+      );
+    }
+    throw new RecipeAiError(
+      "IMAGEN_UNREACHABLE",
+      "Google Imagen could not be reached. Try the thumbnail again in a moment.",
+      503,
+    );
+  }
+
+  const responseText = await response.text();
+  let payload: {
     predictions?: Array<{
       bytesBase64Encoded?: string;
       mimeType?: string;
-      image?: { imageBytes?: string };
+      image?: { imageBytes?: string; mimeType?: string };
     }>;
-  };
+    generatedImages?: Array<{
+      image?: { imageBytes?: string; mimeType?: string };
+    }>;
+    error?: { message?: string };
+    filteredReason?: string;
+  } = {};
+  try {
+    payload = JSON.parse(responseText) as typeof payload;
+  } catch {
+    throw new RecipeAiError(
+      "IMAGEN_BAD_RESPONSE",
+      "Imagen returned an unreadable response. Try generating the thumbnail again.",
+    );
+  }
+  if (!response.ok) {
+    throw imageProviderError(
+      response.status,
+      payload.error?.message || responseText,
+    );
+  }
+
   const prediction = payload.predictions?.[0];
+  const generatedImage = payload.generatedImages?.[0]?.image;
   const base64 =
-    prediction?.bytesBase64Encoded || prediction?.image?.imageBytes;
-  if (!base64) return null;
-  const mimeType = prediction?.mimeType || "image/png";
+    prediction?.bytesBase64Encoded ||
+    prediction?.image?.imageBytes ||
+    generatedImage?.imageBytes;
+  if (!base64) {
+    throw new RecipeAiError(
+      "IMAGEN_NO_IMAGE",
+      payload.filteredReason
+        ? "Imagen filtered this thumbnail direction. Edit the image prompt and try again."
+        : "Imagen completed the request without returning an image. Try a simpler image direction.",
+      422,
+    );
+  }
+  const mimeType =
+    prediction?.mimeType ||
+    prediction?.image?.mimeType ||
+    generatedImage?.mimeType ||
+    "image/png";
   const extension = mimeType.includes("jpeg") ? "jpg" : "png";
-  const blob = await put(
-    `recipes/ai/${Date.now()}-${recipe.title
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "")}.${extension}`,
-    Buffer.from(base64, "base64"),
-    {
-      access: "public",
-      addRandomSuffix: true,
-      contentType: mimeType,
-      token: blobToken,
-    },
-  );
-  return blob.url;
+  try {
+    const blob = await put(
+      `recipes/ai/${Date.now()}-${recipe.title
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-|-$/g, "")}.${extension}`,
+      Buffer.from(base64, "base64"),
+      {
+        access: "public",
+        addRandomSuffix: true,
+        contentType: mimeType,
+        token: blobToken,
+      },
+    );
+    return blob.url;
+  } catch {
+    throw new RecipeAiError(
+      "BLOB_UPLOAD_FAILED",
+      "Imagen created the thumbnail, but Vercel Blob could not store it. Reconnect the Blob store and retry.",
+      502,
+    );
+  }
 }
 
 export async function generateRecipePackage(
@@ -530,12 +675,29 @@ export async function generateRecipePackage(
   pairings: EpicurePairings,
 ) {
   const generated = await generateRecipeWithDeepSeek(request, pairings);
-  const [usdaNutrition, image] = await Promise.all([
+  const [usdaNutrition, imageResult] = await Promise.all([
     calculateUsdaNutrition(generated),
     request.generateImage
-      ? generateRecipeImage(generated).catch(() => null)
-      : Promise.resolve(null),
+      ? generateRecipeThumbnail(generated, 24_000)
+          .then((image) => ({ image, warning: "", code: "" }))
+          .catch((error: unknown) => ({
+            image: "",
+            warning:
+              error instanceof RecipeAiError
+                ? error.message
+                : "The thumbnail could not be generated. Try it again from the recipe preview.",
+            code:
+              error instanceof RecipeAiError
+                ? error.code
+                : "IMAGEN_UNKNOWN_ERROR",
+          }))
+      : Promise.resolve({
+          image: "",
+          warning: "",
+          code: "IMAGE_DISABLED",
+        }),
   ]);
+  const image = imageResult.image || null;
   const nutrition: NutritionResult =
     usdaNutrition || {
       ...roundNutrition(generated.nutritionEstimate),
@@ -558,15 +720,20 @@ export async function generateRecipePackage(
       nutrition: nutrition.source,
       image: image ? "Google Imagen 4" : null,
     },
+    imageGeneration: {
+      status: image
+        ? "generated"
+        : request.generateImage
+          ? "failed"
+          : "skipped",
+      code: imageResult.code || undefined,
+      message: imageResult.warning || undefined,
+    },
     warnings: [
       ...(!process.env.USDA_API_KEY
         ? ["USDA_API_KEY is not configured, so nutrition is an AI estimate."]
         : []),
-      ...(request.generateImage && !image
-        ? [
-            "The thumbnail could not be generated. Configure GEMINI_API_KEY and BLOB_READ_WRITE_TOKEN.",
-          ]
-        : []),
+      ...(imageResult.warning ? [imageResult.warning] : []),
     ],
   };
 }

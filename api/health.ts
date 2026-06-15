@@ -13,6 +13,11 @@ export default {
     return json(request, {
       ok: Object.values(services).every(Boolean),
       services,
+      providers: {
+        recipeAi: Boolean(process.env.DEEPSEEK_API_KEY),
+        nutrition: Boolean(process.env.USDA_API_KEY),
+        imageAi: Boolean(process.env.GEMINI_API_KEY),
+      },
     });
   },
 };
