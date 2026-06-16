@@ -81,6 +81,9 @@ const recipeCopy = {
     saved: "Saved",
     save: "Save",
     share: "Share",
+    shared: "Shared",
+    linkCopied: "Link copied",
+    copyUnavailable: "Copy unavailable",
     print: "Print",
     exitBakeMode: "Exit bake mode",
     startBakeMode: "Start bake mode",
@@ -119,6 +122,9 @@ const recipeCopy = {
     saved: "محفوظة",
     save: "حفظ",
     share: "مشاركة",
+    shared: "تمت المشاركة",
+    linkCopied: "تم نسخ الرابط",
+    copyUnavailable: "تعذر النسخ",
     print: "طباعة",
     exitBakeMode: "إنهاء وضع الخَبز",
     startBakeMode: "بدء وضع الخَبز",
@@ -221,6 +227,24 @@ type FaceDetectorInstance = {
   detect: (video: HTMLVideoElement) => Promise<Array<{ boundingBox: DOMRect }>>;
 };
 
+async function copyText(text: string) {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Copy command was rejected.");
+}
+
 export function RecipeDetail({
   recipe,
   favorite,
@@ -259,6 +283,10 @@ export function RecipeDetail({
   const [voiceActive, setVoiceActive] = useState(false);
   const [gestureActive, setGestureActive] = useState(false);
   const [extrasOpen, setExtrasOpen] = useState(false);
+  const [shareState, setShareState] = useState<
+    "idle" | "shared" | "copied" | "error"
+  >("idle");
+  const shareResetTimer = useRef(0);
   const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const gestureVideo = useRef<HTMLVideoElement>(null);
   const gestureStream = useRef<MediaStream | null>(null);
@@ -290,7 +318,7 @@ export function RecipeDetail({
 
   useEffect(() => {
     if (!recipe) return;
-    if (!bakeSessions[recipe.id]) {
+    if (!useExperienceStore.getState().bakeSessions[recipe.id]) {
       updateBakeSession(recipe.id, {
         servings: recipe.servings,
         completed: [],
@@ -305,10 +333,12 @@ export function RecipeDetail({
 
   useEffect(() => {
     setChaoticIngredients([]);
+    setShareState("idle");
   }, [recipe?.id]);
 
   useEffect(
     () => () => {
+      window.clearTimeout(shareResetTimer.current);
       wakeLock?.release().catch(() => undefined);
       recognitionRef.current?.stop();
       window.cancelAnimationFrame(gestureFrame.current);
@@ -316,6 +346,44 @@ export function RecipeDetail({
     },
     [wakeLock],
   );
+
+  const shareRecipe = async () => {
+    const url = window.location.href;
+    const shareData = {
+      title: displayRecipe.title,
+      text: displayRecipe.subtitle,
+      url,
+    };
+
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+        setShareState("shared");
+        shareResetTimer.current = window.setTimeout(
+          () => setShareState("idle"),
+          2400,
+        );
+        return;
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") return;
+      }
+    }
+
+    try {
+      await copyText(url);
+      setShareState("copied");
+      shareResetTimer.current = window.setTimeout(
+        () => setShareState("idle"),
+        2400,
+      );
+    } catch {
+      setShareState("error");
+      shareResetTimer.current = window.setTimeout(
+        () => setShareState("idle"),
+        2400,
+      );
+    }
+  };
 
   const progress = useMemo(() => {
     if (!recipe?.steps.length) return 0;
@@ -818,6 +886,7 @@ export function RecipeDetail({
                     return (
                     <li key={ingredient} className={checked ? "is-checked" : ""}>
                       <button
+                        type="button"
                         onClick={() => toggleIngredient(index)}
                         aria-label={`${checked ? "Uncheck" : "Check"} ${ingredient}`}
                       >
@@ -832,6 +901,7 @@ export function RecipeDetail({
                       {extrasOpen && (
                         <>
                           <button
+                            type="button"
                             className={`unit-chaos-button ${
                               chaoticIngredients.includes(index) ? "is-active" : ""
                             }`}
@@ -851,6 +921,7 @@ export function RecipeDetail({
                             <Scale size={14} />
                           </button>
                           <button
+                            type="button"
                             className="substitution-roulette"
                             onClick={() => spinSubstitution(ingredient)}
                             aria-label={`Spin emergency substitution for ${ingredient}`}
@@ -919,14 +990,25 @@ export function RecipeDetail({
                     <small>{recipe.saves.toLocaleString(language === "ar" ? "ar" : "en")}</small>
                   </motion.button>
                   <button
-                    onClick={async () => {
-                      await navigator.clipboard?.writeText(window.location.href);
-                    }}
+                    type="button"
+                    onClick={shareRecipe}
+                    aria-live="polite"
                   >
-                    <Share2 size={16} />
-                    {copy.share}
+                    {shareState === "idle" ? (
+                      <Share2 size={16} />
+                    ) : (
+                      <Check size={16} />
+                    )}
+                    {shareState === "shared"
+                      ? copy.shared
+                      : shareState === "copied"
+                        ? copy.linkCopied
+                        : shareState === "error"
+                          ? copy.copyUnavailable
+                          : copy.share}
                   </button>
                   <motion.button
+                    type="button"
                     whileTap={{ scaleX: 1.1, scaleY: 0.76 }}
                     transition={{ type: "spring", stiffness: 500, damping: 17 }}
                     onClick={() => window.setTimeout(() => window.print(), 220)}
@@ -1012,8 +1094,12 @@ export function RecipeDetail({
                         onClick={() => bakeMode && setStep(index)}
                       >
                         <button
+                          type="button"
                           className="step-check"
-                          onClick={() => toggleStep(index)}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleStep(index);
+                          }}
                           aria-label={`Mark step ${index + 1} ${isComplete ? "incomplete" : "complete"}`}
                         >
                           {isComplete ? <Check size={17} /> : String(index + 1).padStart(2, "0")}
@@ -1047,6 +1133,36 @@ export function RecipeDetail({
                 </div>
               </section>
             </div>
+
+            <section className="recipe-print-sheet" aria-hidden="true">
+              <header>
+                <span>Loco for Cocoa</span>
+                <h1>{displayRecipe.title}</h1>
+              </header>
+              <div className="recipe-print-grid">
+                <section>
+                  <h2>{copy.whatYouNeed}</h2>
+                  <ul>
+                    {displayRecipe.ingredients.map((ingredient) => (
+                      <li key={ingredient}>
+                        {scaleIngredient(
+                          ingredient,
+                          realisticPortions ? 1 : servings / recipe.servings,
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+                <section>
+                  <h2>{copy.method}</h2>
+                  <ol>
+                    {displayRecipe.steps.map((step, index) => (
+                      <li key={`${step.text}-${index}`}>{step.text}</li>
+                    ))}
+                  </ol>
+                </section>
+              </div>
+            </section>
 
             <div className={`bake-mode-bar ${bakeMode ? "is-active" : ""}`}>
               {bakeMode ? (

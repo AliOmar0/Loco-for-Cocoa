@@ -19,9 +19,12 @@ export default {
       const missingNutrition = process.env.USDA_API_KEY
         ? []
         : ["USDA_API_KEY"];
+      const googleImageEnabled =
+        Boolean(process.env.GEMINI_API_KEY) &&
+        process.env.ENABLE_GOOGLE_IMAGE_FALLBACK === "true";
       const missingImage = [
         ...(!process.env.POLLINATIONS_API_KEY &&
-        !process.env.GEMINI_API_KEY
+        !googleImageEnabled
           ? ["POLLINATIONS_API_KEY"]
           : []),
         ...(!process.env.BLOB_READ_WRITE_TOKEN
@@ -44,9 +47,11 @@ export default {
           image:
             process.env.POLLINATIONS_API_KEY?.trim()
               ? "pollinations-free (authenticated)"
-              : process.env.GEMINI_IMAGE_MODEL?.trim() ||
-                "gemini-3.1-flash-image",
-          imageFallback: process.env.GEMINI_API_KEY
+              : googleImageEnabled
+                ? process.env.GEMINI_IMAGE_MODEL?.trim() ||
+                  "gemini-3.1-flash-image"
+                : "not configured",
+          imageFallback: googleImageEnabled
             ? process.env.GEMINI_IMAGE_MODEL?.trim() ||
               "gemini-3.1-flash-image"
             : "none",

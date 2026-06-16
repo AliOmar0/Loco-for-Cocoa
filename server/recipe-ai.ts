@@ -836,10 +836,15 @@ export async function generateRecipeThumbnail(
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const pollinationsKey = process.env.POLLINATIONS_API_KEY?.trim();
   const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
-  if (!pollinationsKey && !apiKey) {
+  const googleFallbackEnabled =
+    process.env.ENABLE_GOOGLE_IMAGE_FALLBACK === "true";
+  const imagenFallbackEnabled =
+    googleFallbackEnabled &&
+    process.env.ENABLE_IMAGEN_FALLBACK === "true";
+  if (!pollinationsKey && !(apiKey && googleFallbackEnabled)) {
     throw new RecipeAiError(
-      "IMAGE_PROVIDER_NOT_CONFIGURED",
-      "Add a free POLLINATIONS_API_KEY, or configure GEMINI_API_KEY as an optional paid fallback.",
+      "FREE_IMAGE_NOT_CONFIGURED",
+      "Free thumbnail generation is not connected. Add POLLINATIONS_API_KEY in Vercel, then redeploy. Google image fallback stays off unless ENABLE_GOOGLE_IMAGE_FALLBACK=true.",
       503,
     );
   }
@@ -867,7 +872,7 @@ export async function generateRecipeThumbnail(
           },
         ]
       : []),
-    ...(apiKey
+    ...(apiKey && googleFallbackEnabled
       ? [
             {
               provider: preferredModel,
@@ -893,11 +898,15 @@ export async function generateRecipeThumbnail(
                       ),
                   },
                 ]),
-            {
-              provider: "imagen-4.0-generate-001",
-              run: (remainingMs: number) =>
-                generateWithImagen(recipe, apiKey, remainingMs),
-            },
+            ...(imagenFallbackEnabled
+              ? [
+                  {
+                    provider: "imagen-4.0-generate-001",
+                    run: (remainingMs: number) =>
+                      generateWithImagen(recipe, apiKey, remainingMs),
+                  },
+                ]
+              : []),
         ]
       : []),
   ];
@@ -938,6 +947,13 @@ export async function generateRecipeThumbnail(
     }
   }
   if (!generated) {
+    if (!pollinationsKey) {
+      throw new RecipeAiError(
+        "FREE_IMAGE_NOT_CONFIGURED",
+        "The free image renderer is not connected. Add POLLINATIONS_API_KEY in Vercel and redeploy; Imagen is disabled by default to avoid paid or unavailable requests.",
+        503,
+      );
+    }
     throw (
       lastError ||
       new RecipeAiError(

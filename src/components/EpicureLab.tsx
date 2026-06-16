@@ -226,7 +226,7 @@ export function EpicureLab({
   }, [authToken]);
 
   useEffect(() => {
-    if (providers && !providers.image && brief.generateImage) {
+    if (providers && !providers.freeImage && brief.generateImage) {
       setBrief((current) => ({ ...current, generateImage: false }));
     }
   }, [brief.generateImage, providers]);
@@ -471,14 +471,12 @@ export function EpicureLab({
                 : "checking"}
           </small>
         </span>
-        <span className={providers?.image ? "is-ready" : ""}>
+        <span className={providers?.freeImage ? "is-ready" : ""}>
           <ImageIcon size={16} />
           <span>AI thumbnail</span>
           <small>
             {providers?.freeImage
               ? "free renderer ready"
-              : providers?.image
-                ? "Google fallback only"
               : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
                   ? "connect Blob"
                   : providers?.missing.image.includes("POLLINATIONS_API_KEY")
@@ -880,8 +878,8 @@ export function EpicureLab({
             type="button"
             className={`epicure-image-toggle ${
               brief.generateImage ? "is-active" : ""
-            } ${providers && !providers.image ? "is-unavailable" : ""}`}
-            disabled={Boolean(providers && !providers.image)}
+            } ${providers && !providers.freeImage ? "is-unavailable" : ""}`}
+            disabled={Boolean(providers && !providers.freeImage)}
             onClick={() =>
               setBrief((current) => ({
                 ...current,
@@ -893,10 +891,8 @@ export function EpicureLab({
             <span>
               <strong>Generate an editorial thumbnail</strong>
               <small>
-                {providers?.image
-                  ? providers.freeImage
-                    ? "Free community rendering, stored in Vercel Blob"
-                    : "Google fallback configured; add Pollinations for free rendering"
+                {providers?.freeImage
+                  ? "Free community rendering, stored in Vercel Blob"
                   : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
                     ? "Connect Vercel Blob to store generated thumbnails"
                     : "Add a free Pollinations key; no card is required"}
@@ -1101,7 +1097,7 @@ export function EpicureLab({
                     type="button"
                     disabled={
                       imageBusy ||
-                      !providers?.image ||
+                      !providers?.freeImage ||
                       generated.imagePrompt.trim().length < 10
                     }
                     onClick={requestThumbnail}

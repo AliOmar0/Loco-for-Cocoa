@@ -5,7 +5,7 @@ import {
   Hand,
   ThermometerSun,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useState } from "react";
 
 const notes = [
@@ -58,28 +58,25 @@ export function FieldNotes() {
           “bake until done” is deeply unhelpful.
         </p>
 
-        <AnimatePresence mode="wait">
-          <motion.article
-            key={active.id}
-            className="note-reveal"
-            style={{ backgroundColor: active.color }}
-            initial={{ opacity: 0, y: 18, rotate: -1 }}
-            animate={{ opacity: 1, y: 0, rotate: 0 }}
-            exit={{ opacity: 0, y: -12 }}
-            transition={{ duration: 0.32 }}
-          >
-            <div className="note-reveal-top">
-              <span>{active.label}</span>
-              <ActiveIcon size={23} strokeWidth={1.6} />
-            </div>
-            <h3>{active.title}</h3>
-            <p>{active.body}</p>
-            <small>
-              <CircleDot size={12} />
-              {active.detail}
-            </small>
-          </motion.article>
-        </AnimatePresence>
+        <motion.article
+          key={active.id}
+          className="note-reveal"
+          style={{ backgroundColor: active.color }}
+          initial={{ opacity: 0, y: 18, rotate: -1 }}
+          animate={{ opacity: 1, y: 0, rotate: 0 }}
+          transition={{ duration: 0.32 }}
+        >
+          <div className="note-reveal-top">
+            <span>{active.label}</span>
+            <ActiveIcon size={23} strokeWidth={1.6} />
+          </div>
+          <h3>{active.title}</h3>
+          <p>{active.body}</p>
+          <small>
+            <CircleDot size={12} />
+            {active.detail}
+          </small>
+        </motion.article>
       </div>
 
       <div className="field-note-list">
@@ -88,10 +85,12 @@ export function FieldNotes() {
           const selected = note.id === active.id;
           return (
             <button
+              type="button"
               key={note.id}
+              data-note-id={note.id}
               className={selected ? "is-active" : ""}
               onClick={() => setActiveId(note.id)}
-              onPointerEnter={() => setActiveId(note.id)}
+              onMouseEnter={() => setActiveId(note.id)}
               aria-pressed={selected}
             >
               <span className="field-note-index">{note.index}</span>

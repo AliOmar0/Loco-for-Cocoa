@@ -16,7 +16,11 @@ export default {
       providers: {
         recipeAi: Boolean(process.env.DEEPSEEK_API_KEY),
         nutrition: Boolean(process.env.USDA_API_KEY),
-        imageAi: Boolean(process.env.GEMINI_API_KEY),
+        imageAi: Boolean(
+          process.env.POLLINATIONS_API_KEY ||
+          (process.env.GEMINI_API_KEY &&
+            process.env.ENABLE_GOOGLE_IMAGE_FALLBACK === "true"),
+        ),
       },
     });
   },

@@ -27,7 +27,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { Link } from "react-router-dom";
@@ -219,6 +219,16 @@ function RecipeEditor({
   const values = watch();
   const draftKey = `loco-studio-draft-${recipe?.id || "new"}`;
   const draftPayload = JSON.stringify(values);
+  const latestDraft = useRef({
+    key: draftKey,
+    payload: draftPayload,
+    dirty: isDirty,
+  });
+  latestDraft.current = {
+    key: draftKey,
+    payload: draftPayload,
+    dirty: isDirty,
+  };
 
   useEffect(() => {
     const base = recipe ? recipeToForm(recipe) : blankRecipe();
@@ -247,19 +257,30 @@ function RecipeEditor({
 
   useEffect(() => {
     if (!isDirty) return;
-    setAutosaveState("Autosaving...");
-    const timer = window.setTimeout(() => {
+    localStorage.setItem(
+      draftKey,
+      JSON.stringify({
+        updatedAt: new Date().toISOString(),
+        values: JSON.parse(draftPayload),
+      }),
+    );
+    setAutosaveState("Autosaved locally");
+  }, [draftKey, draftPayload, isDirty]);
+
+  useEffect(
+    () => () => {
+      const draft = latestDraft.current;
+      if (!draft.dirty) return;
       localStorage.setItem(
-        draftKey,
+        draft.key,
         JSON.stringify({
           updatedAt: new Date().toISOString(),
-          values: JSON.parse(draftPayload),
+          values: JSON.parse(draft.payload),
         }),
       );
-      setAutosaveState("Autosaved locally");
-    }, 650);
-    return () => window.clearTimeout(timer);
-  }, [draftKey, draftPayload, isDirty]);
+    },
+    [],
+  );
 
   const qualityChecks = useMemo(
     () => [
@@ -400,6 +421,7 @@ function RecipeEditor({
       updatedAt: now,
     };
     upsertRecipe(next);
+    latestDraft.current.dirty = false;
     localStorage.removeItem(draftKey);
     setAutosaveState("Saved to archive");
     setSaved(true);
@@ -501,7 +523,7 @@ function RecipeEditor({
         </button>
       </div>
 
-      <AnimatePresence mode="wait">
+      <>
         {tab === "content" && (
           <motion.div
             key="content"
@@ -1044,7 +1066,7 @@ function RecipeEditor({
             </section>
           </motion.div>
         )}
-      </AnimatePresence>
+      </>
 
       <div className="editor-danger-zone">
         <div>
@@ -1070,6 +1092,8 @@ function RecipeEditor({
               className="danger-button"
               onClick={() => {
                 if (window.confirm(`Delete "${recipe.title}"?`)) {
+                  latestDraft.current.dirty = false;
+                  localStorage.removeItem(draftKey);
                   deleteRecipe(recipe.id);
                   onDeleted();
                 }
@@ -1211,6 +1235,63 @@ function StudioLogin({
 }
 
 type StudioView = "recipes" | "collections" | "performance" | "saves";
+
+const studioWorkspaceKey = "loco-studio-workspace-v1";
+
+type StudioWorkspaceState = {
+  selectedId: string | null;
+  creating: boolean;
+  studioView: StudioView;
+};
+
+function readStudioWorkspaceState(
+  recipes: Recipe[],
+): StudioWorkspaceState {
+  const fallback: StudioWorkspaceState = {
+    selectedId: recipes[0]?.id || null,
+    creating: false,
+    studioView: "recipes",
+  };
+  try {
+    const stored = localStorage.getItem(studioWorkspaceKey);
+    if (!stored) return fallback;
+    const parsed = JSON.parse(stored) as Partial<StudioWorkspaceState>;
+    const validViews: StudioView[] = [
+      "recipes",
+      "collections",
+      "performance",
+      "saves",
+    ];
+    const creating = Boolean(parsed.creating);
+    const selectedId =
+      typeof parsed.selectedId === "string" &&
+      recipes.some((recipe) => recipe.id === parsed.selectedId)
+        ? parsed.selectedId
+        : recipes[0]?.id || null;
+    return {
+      selectedId: creating ? null : selectedId,
+      creating,
+      studioView: validViews.includes(parsed.studioView as StudioView)
+        ? (parsed.studioView as StudioView)
+        : "recipes",
+    };
+  } catch {
+    return fallback;
+  }
+}
+
+function mergeRecipeArchives(localRecipes: Recipe[], cloudRecipes: Recipe[]) {
+  const cloudById = new Map(cloudRecipes.map((recipe) => [recipe.id, recipe]));
+  const merged = localRecipes.map((localRecipe) => {
+    const cloudRecipe = cloudById.get(localRecipe.id);
+    if (!cloudRecipe) return localRecipe;
+    cloudById.delete(localRecipe.id);
+    const localUpdated = Date.parse(localRecipe.updatedAt) || 0;
+    const cloudUpdated = Date.parse(cloudRecipe.updatedAt) || 0;
+    return cloudUpdated > localUpdated ? cloudRecipe : localRecipe;
+  });
+  return [...merged, ...cloudById.values()];
+}
 
 function PerformanceView({ recipes }: { recipes: Recipe[] }) {
   const ranked = [...recipes].sort((a, b) => b.saves - a.saves);
@@ -1454,6 +1535,9 @@ export function StudioPage() {
   );
   const resetRecipes = useRecipeStore((state) => state.resetRecipes);
   const togglePublished = useRecipeStore((state) => state.togglePublished);
+  const restoredWorkspace = useRef(
+    readStudioWorkspaceState(recipes),
+  ).current;
   const [session, setSession] = useState<AuthSession | null>(() => {
     const stored = sessionStorage.getItem("loco-studio-session");
     if (!stored) return null;
@@ -1464,15 +1548,24 @@ export function StudioPage() {
     }
   });
   const [selectedId, setSelectedId] = useState<string | null>(
-    recipes[0]?.id || null,
+    restoredWorkspace.selectedId,
   );
-  const [creating, setCreating] = useState(false);
+  const [creating, setCreating] = useState(restoredWorkspace.creating);
   const [query, setQuery] = useState("");
-  const [studioView, setStudioView] = useState<StudioView>("recipes");
+  const [studioView, setStudioView] = useState<StudioView>(
+    restoredWorkspace.studioView,
+  );
   const [cloudState, setCloudState] = useState<
     "idle" | "loading" | "ready" | "error"
   >("idle");
   const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    localStorage.setItem(
+      studioWorkspaceKey,
+      JSON.stringify({ selectedId, creating, studioView }),
+    );
+  }, [creating, selectedId, studioView]);
 
   useEffect(() => {
     if (
@@ -1488,9 +1581,17 @@ export function StudioPage() {
       .then((archive) => {
         if (cancelled) return;
         if (archive.initialized) {
-          replaceRecipes(archive.recipes);
+          const mergedRecipes = mergeRecipeArchives(
+            useRecipeStore.getState().recipes,
+            archive.recipes,
+          );
+          replaceRecipes(mergedRecipes);
           replaceCollections(archive.collections);
-          setSelectedId(archive.recipes[0]?.id || null);
+          setSelectedId((current) =>
+            current && mergedRecipes.some((recipe) => recipe.id === current)
+              ? current
+              : mergedRecipes[0]?.id || null,
+          );
         }
         setCloudState("ready");
       })
@@ -1538,6 +1639,37 @@ export function StudioPage() {
   const collectionsCount = collections.length;
 
   if (!session) return <StudioLogin onUnlock={setSession} />;
+
+  const persistCloudArchive = async (notify = false) => {
+    if (!backendConfigured || session.token === "local-preview") return;
+    try {
+      setCloudState("loading");
+      const current = useRecipeStore.getState();
+      const result = await syncArchive(
+        current.recipes,
+        current.collections,
+        session.token,
+      );
+      replaceRecipes(
+        mergeRecipeArchives(
+          useRecipeStore.getState().recipes,
+          result.recipes,
+        ),
+      );
+      replaceCollections(result.collections);
+      setCloudState("ready");
+      if (notify) window.alert("Studio and cloud archive are in sync.");
+    } catch (error) {
+      setCloudState("error");
+      if (notify) {
+        window.alert(
+          error instanceof Error ? error.message : "Cloud sync failed.",
+        );
+      } else {
+        console.error("Unable to autosync Studio archive:", error);
+      }
+    }
+  };
 
   const exportRecipes = () => {
     const blob = new Blob(
@@ -1614,25 +1746,7 @@ export function StudioPage() {
           {backendConfigured && (
             <button
               disabled={cloudState === "loading"}
-              onClick={async () => {
-                try {
-                  setCloudState("loading");
-                  const result = await syncArchive(
-                    recipes,
-                    collections,
-                    session.token,
-                  );
-                  replaceRecipes(result.recipes);
-                  replaceCollections(result.collections);
-                  setCloudState("ready");
-                  window.alert("Studio and cloud archive are in sync.");
-                } catch (error) {
-                  setCloudState("error");
-                  window.alert(
-                    error instanceof Error ? error.message : "Cloud sync failed.",
-                  );
-                }
-              }}
+              onClick={() => void persistCloudArchive(true)}
             >
               <Cloud size={16} />
               {cloudState === "loading"
@@ -1816,6 +1930,7 @@ export function StudioPage() {
               onSaved={(id) => {
                 setCreating(false);
                 setSelectedId(id);
+                void persistCloudArchive();
               }}
               onDeleted={() => {
                 setCreating(false);

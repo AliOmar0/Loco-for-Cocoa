@@ -9668,3 +9668,416 @@ html[data-visual-intensity="reduced"] .art-chip {
     width: 100%;
   }
 }
+
+/* Focused recipe print sheet */
+
+.recipe-print-sheet {
+  display: none;
+}
+
+@media print {
+  @page {
+    margin: 14mm;
+  }
+
+  html,
+  body,
+  #root {
+    width: 100%;
+    min-height: 0;
+    overflow: visible !important;
+    background: white !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .recipe-print-sheet,
+  .recipe-print-sheet * {
+    visibility: visible !important;
+  }
+
+  .recipe-print-sheet {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: block !important;
+    width: 100%;
+    padding: 0;
+    color: #21100c;
+    direction: inherit;
+    font-family: Arial, sans-serif;
+  }
+
+  .recipe-print-sheet > header {
+    margin-bottom: 10mm;
+    padding-bottom: 6mm;
+    border-bottom: 2px solid #3f1b14;
+  }
+
+  .recipe-print-sheet > header span {
+    display: block;
+    margin-bottom: 3mm;
+    color: #6f493f;
+    font-size: 9pt;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .recipe-print-sheet h1 {
+    margin: 0;
+    font-family: Georgia, serif;
+    font-size: 26pt;
+    font-weight: 500;
+    line-height: 1.05;
+  }
+
+  .recipe-print-grid {
+    display: grid;
+    grid-template-columns: minmax(52mm, 0.75fr) minmax(0, 1.4fr);
+    gap: 12mm;
+  }
+
+  .recipe-print-grid h2 {
+    margin: 0 0 5mm;
+    font-family: Georgia, serif;
+    font-size: 16pt;
+    font-weight: 600;
+  }
+
+  .recipe-print-grid ul,
+  .recipe-print-grid ol {
+    margin: 0;
+    padding-inline-start: 6mm;
+  }
+
+  .recipe-print-grid li {
+    margin-bottom: 3.5mm;
+    break-inside: avoid;
+    font-size: 10.5pt;
+    line-height: 1.45;
+  }
+}
+
+/* Studio mobile workspace */
+
+@media (max-width: 900px) {
+  .studio-page {
+    overflow-x: clip;
+  }
+
+  .studio-sidebar {
+    position: sticky;
+    z-index: 120;
+    top: 0;
+    bottom: auto;
+    display: flex;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    padding: 10px 12px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    overflow: visible;
+    border-right: 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 12px 30px rgba(28, 8, 5, 0.2);
+  }
+
+  .studio-wordmark {
+    flex: 0 0 auto;
+  }
+
+  .studio-sidebar nav {
+    display: flex;
+    min-width: 0;
+    margin: 0 0 0 auto;
+    flex: 1 1 auto;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .studio-sidebar nav::-webkit-scrollbar,
+  .sidebar-bottom::-webkit-scrollbar,
+  .editor-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .studio-sidebar nav button {
+    min-width: max-content;
+    min-height: 48px;
+    flex: 0 0 auto;
+  }
+
+  .sidebar-bottom {
+    display: flex;
+    width: 100%;
+    margin: 0;
+    flex: 1 0 100%;
+    gap: 6px;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .sidebar-bottom button,
+  .sidebar-bottom a {
+    display: inline-flex !important;
+    min-width: max-content;
+    min-height: 44px;
+    margin: 0;
+    flex: 0 0 auto;
+  }
+
+  .studio-workspace {
+    width: 100%;
+    min-width: 0;
+    margin-left: 0;
+    padding: 24px 16px 52px;
+  }
+
+  .studio-content-grid {
+    min-height: 0;
+    overflow: visible;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .recipe-manager,
+  .studio-editor {
+    min-width: 0;
+  }
+
+  .recipe-manager {
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .editor-tabs {
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .epicure-lab,
+  .epicure-lab-grid,
+  .epicure-panel {
+    min-width: 0;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 620px) {
+  .studio-sidebar {
+    padding: 8px 10px 9px;
+    gap: 7px;
+  }
+
+  .studio-wordmark {
+    padding: 0;
+  }
+
+  .studio-wordmark > div {
+    display: none;
+  }
+
+  .studio-wordmark > span {
+    width: 44px;
+    height: 44px;
+    border-radius: 13px;
+  }
+
+  .studio-sidebar nav {
+    justify-content: space-between;
+  }
+
+  .studio-sidebar nav button {
+    display: grid;
+    width: 48px;
+    min-width: 48px;
+    height: 48px;
+    min-height: 48px;
+    padding: 0;
+    place-items: center;
+    font-size: 0;
+  }
+
+  .studio-sidebar nav button > span {
+    display: none;
+  }
+
+  .studio-nav-icon {
+    width: 40px;
+    height: 40px;
+  }
+
+  .sidebar-bottom button,
+  .sidebar-bottom a {
+    min-height: 44px;
+    padding-inline: 11px;
+    font-size: 8px;
+  }
+
+  .studio-workspace {
+    padding: 20px 10px 44px;
+  }
+
+  .studio-header {
+    display: grid;
+    align-items: stretch;
+    gap: 14px;
+  }
+
+  .studio-header h1 {
+    max-width: 11ch;
+    font-size: clamp(34px, 12vw, 48px);
+    line-height: 0.94;
+  }
+
+  .studio-header > div:last-child,
+  .studio-header .studio-primary {
+    width: 100%;
+  }
+
+  .studio-header .studio-primary {
+    min-height: 48px;
+  }
+
+  .studio-stats {
+    margin-block: 20px 14px;
+    gap: 7px;
+  }
+
+  .studio-stats article {
+    min-width: 0;
+    padding: 13px 11px;
+  }
+
+  .studio-stats span,
+  .studio-stats small {
+    overflow-wrap: anywhere;
+  }
+
+  .studio-content-grid {
+    border-radius: 16px;
+  }
+
+  .recipe-manager {
+    padding: 14px 10px;
+  }
+
+  .manager-list {
+    max-height: 300px;
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .editor-topbar {
+    padding: 14px;
+  }
+
+  .editor-topbar h2 {
+    overflow-wrap: anywhere;
+  }
+
+  .editor-state {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .editor-state .studio-primary {
+    width: 100%;
+    min-height: 48px;
+  }
+
+  .editor-tabs {
+    padding-inline: 10px;
+    gap: 8px;
+  }
+
+  .editor-tabs button {
+    min-height: 48px;
+    flex: 0 0 auto;
+  }
+
+  .editor-canvas {
+    min-width: 0;
+    padding: 10px;
+  }
+
+  .editor-section,
+  .collection-editor,
+  .performance-view > *,
+  .community-summary > *,
+  .community-table {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .field-array > div,
+  .step-array > div {
+    min-width: 0;
+  }
+
+  .field-array input,
+  .step-array input,
+  .step-array textarea,
+  .editor-section input,
+  .editor-section textarea,
+  .editor-section select {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .epicure-lab {
+    padding: 6px;
+  }
+
+  .epicure-lab-hero {
+    min-height: 280px;
+    padding: 22px 17px;
+    border-radius: 18px;
+  }
+
+  .epicure-lab-hero h3 {
+    max-width: 9ch;
+    font-size: clamp(42px, 15vw, 58px);
+  }
+
+  .epicure-panel {
+    padding: 16px 12px;
+    border-radius: 16px;
+  }
+
+  .epicure-panel-heading {
+    align-items: flex-start;
+  }
+
+  .epicure-panel-heading > span {
+    width: 44px;
+    height: 44px;
+    flex: 0 0 44px;
+  }
+
+  .epicure-panel-heading h4 {
+    overflow-wrap: anywhere;
+  }
+
+  .epicure-provider-strip {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .epicure-provider-strip > span {
+    min-width: 180px;
+    flex: 0 0 auto;
+  }
+
+  .epicure-generation-progress {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}

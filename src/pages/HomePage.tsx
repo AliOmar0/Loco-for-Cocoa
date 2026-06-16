@@ -43,6 +43,8 @@ export function HomePage() {
   const openRecipe = useCallback((recipe: Recipe) => {
     const transitionDocument = document as Document & {
       startViewTransition?: (callback: () => void) => {
+        ready?: Promise<void>;
+        updateCallbackDone?: Promise<void>;
         finished: Promise<void>;
       };
     };
@@ -53,10 +55,19 @@ export function HomePage() {
       return;
     }
 
-    const transition = transitionDocument.startViewTransition(() => {
-      flushSync(() => navigate(`/recipes/${encodeURIComponent(recipe.id)}`));
-    });
-    transition.finished.finally(() => setTransitioningRecipeId(null));
+    try {
+      const transition = transitionDocument.startViewTransition(() => {
+        flushSync(() => navigate(`/recipes/${encodeURIComponent(recipe.id)}`));
+      });
+      transition.ready?.catch(() => undefined);
+      transition.updateCallbackDone?.catch(() => undefined);
+      transition.finished
+        .catch(() => undefined)
+        .finally(() => setTransitioningRecipeId(null));
+    } catch {
+      navigate(`/recipes/${encodeURIComponent(recipe.id)}`);
+      setTransitioningRecipeId(null);
+    }
   }, [navigate]);
 
   const roulette = useCallback(() => {

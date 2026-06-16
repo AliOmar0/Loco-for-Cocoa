@@ -119,6 +119,14 @@ await send("Emulation.setDeviceMetricsOverride", {
   mobile: false,
 });
 await send("Page.navigate", { url: homeUrl });
+await waitFor(`Boolean(window.localStorage)`);
+await evaluate(`(() => {
+  localStorage.removeItem("loco-for-cocoa-experience-v1");
+  localStorage.removeItem("loco-studio-draft-new");
+  localStorage.removeItem("loco-studio-workspace-v1");
+  sessionStorage.removeItem("loco-studio-session");
+})()`);
+await send("Page.navigate", { url: homeUrl });
 await waitFor(`document.querySelectorAll(".recipe-card").length >= 6`);
 await waitFor(`Boolean(document.querySelector(".shader-shell canvas"))`, 20000);
 
@@ -216,6 +224,7 @@ if (updatedServing !== initialServing + 1) {
 }
 await evaluate(`document.querySelector(".step-check").click()`);
 await waitFor(`document.querySelector(".method-list li").classList.contains("is-complete")`);
+await new Promise((resolve) => setTimeout(resolve, 120));
 await evaluate(`document.querySelector(".ingredient-list button").click()`);
 await waitFor(`document.querySelector(".ingredient-list li").classList.contains("is-checked")`);
 await evaluate(`document.querySelector(".ingredient-heading button").click()`);
@@ -301,11 +310,15 @@ await new Promise((resolve) => setTimeout(resolve, 500));
 await capture("react-flavor-lab-desktop.png");
 await evaluate(`document.querySelector("#field-notes").scrollIntoView()`);
 await new Promise((resolve) => setTimeout(resolve, 350));
-const initialNote = await evaluate(`document.querySelector(".note-reveal h3").textContent`);
-await evaluate(`document.querySelectorAll(".field-note-list > button")[1].click()`);
-await waitFor(
-  `document.querySelector(".note-reveal h3").textContent !== ${JSON.stringify(initialNote)}`,
-);
+await evaluate(`(
+  document.querySelector('[data-note-id="brown-butter"]') ||
+  document.querySelectorAll(".field-note-list > button")[1]
+).click()`);
+await waitFor(`(() => {
+  const active = document.querySelector(".field-note-list > button.is-active");
+  return active?.textContent?.includes("Brown butter") &&
+    Boolean(document.querySelector(".note-reveal"));
+})()`);
 await capture("react-field-notes-desktop.png");
 await evaluate(`document.querySelector(".site-footer").scrollIntoView()`);
 await new Promise((resolve) => setTimeout(resolve, 400));
@@ -486,7 +499,10 @@ await evaluate(`document.querySelector(".studio-header .studio-primary").click()
 await waitFor(
   `document.querySelector(".editor-topbar h2").textContent.includes("Untitled")`,
 );
-await evaluate(`document.querySelectorAll(".editor-tabs button")[1].click()`);
+await evaluate(`([...document.querySelectorAll(".editor-tabs button")]
+  .find((button) => button.textContent.includes("Epicure Lab")) ||
+  document.querySelectorAll(".editor-tabs button")[1]
+).click()`);
 await waitFor(`Boolean(document.querySelector(".epicure-lab"))`);
 const epicureSummary = await evaluate(`({
   panels: document.querySelectorAll(".epicure-panel").length,
