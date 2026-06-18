@@ -227,26 +227,44 @@ await waitFor(`document.querySelector(".method-list li").classList.contains("is-
 await new Promise((resolve) => setTimeout(resolve, 120));
 await evaluate(`document.querySelector(".ingredient-list button").click()`);
 await waitFor(`document.querySelector(".ingredient-list li").classList.contains("is-checked")`);
-await evaluate(`document.querySelector(".ingredient-heading button").click()`);
-await waitFor(`Boolean(document.querySelector(".recipe-extras-panel"))`);
-const advancedRecipeTools = await evaluate(`({
+const recipePageTools = await evaluate(`({
   substitutions: document.querySelectorAll(".substitution-roulette").length,
   unitConverters: document.querySelectorAll(".unit-chaos-button").length,
   portionToggle: Boolean(document.querySelector(".portion-personality")),
-  handsFree: document.querySelectorAll(".hands-free-controls button").length,
+  extrasPanel: Boolean(document.querySelector(".recipe-extras-panel")),
+  nutrition: Boolean(document.querySelector(".recipe-nutrition")),
   messMeter: document.querySelectorAll(".mess-meter i").length
 })`);
 if (
-  advancedRecipeTools.substitutions < 1 ||
-  advancedRecipeTools.unitConverters < 1 ||
-  !advancedRecipeTools.portionToggle ||
-  advancedRecipeTools.handsFree !== 2 ||
-  advancedRecipeTools.messMeter !== 5
+  recipePageTools.substitutions !== 0 ||
+  recipePageTools.unitConverters !== 0 ||
+  recipePageTools.portionToggle ||
+  recipePageTools.extrasPanel ||
+  !recipePageTools.nutrition ||
+  recipePageTools.messMeter !== 5
 ) {
-  throw new Error(`Advanced recipe tools did not initialize: ${JSON.stringify(advancedRecipeTools)}`);
+  throw new Error(`Recipe page simplification failed: ${JSON.stringify(recipePageTools)}`);
 }
-await evaluate(`document.querySelector(".substitution-roulette").click()`);
-await waitFor(`Boolean(document.querySelector(".substitution-result"))`);
+await send("Emulation.setEmulatedMedia", { media: "print" });
+const printState = await evaluate(`(() => {
+  const detail = document.querySelector(".recipe-detail");
+  const printSheet = document.querySelector(".recipe-print-sheet");
+  return {
+    sheetDisplay: getComputedStyle(printSheet).display,
+    sheetPosition: getComputedStyle(printSheet).position,
+    visibleSiblings: [...detail.children]
+      .filter((child) => !child.classList.contains("recipe-print-sheet"))
+      .filter((child) => getComputedStyle(child).display !== "none").length
+  };
+})()`);
+await send("Emulation.setEmulatedMedia", { media: "screen" });
+if (
+  printState.sheetDisplay === "none" ||
+  printState.sheetPosition !== "static" ||
+  printState.visibleSiblings !== 0
+) {
+  throw new Error(`Recipe print sheet is not isolated: ${JSON.stringify(printState)}`);
+}
 await evaluate(`document.querySelector(".detail-rail button").click()`);
 await waitFor(`!document.querySelector(".recipe-detail")`);
 
@@ -507,6 +525,8 @@ await waitFor(`Boolean(document.querySelector(".epicure-lab"))`);
 const epicureSummary = await evaluate(`({
   panels: document.querySelectorAll(".epicure-panel").length,
   ingredientSuggestions: document.querySelectorAll(".epicure-suggestions button").length,
+  directPresets: document.querySelectorAll(".epicure-preset-grid button").length,
+  customChips: document.querySelectorAll(".epicure-chip-grid button").length,
   externalUrl: document.querySelector(".epicure-lab-hero a")?.href,
   ingredientSearch: Boolean(document.querySelector(".epicure-catalogue-search input")),
   providerStatuses: document.querySelectorAll(".epicure-provider-strip > span").length,
@@ -516,6 +536,8 @@ const epicureSummary = await evaluate(`({
 if (
   epicureSummary.panels !== 4 ||
   epicureSummary.ingredientSuggestions < 8 ||
+  epicureSummary.directPresets < 6 ||
+  epicureSummary.customChips < 16 ||
   epicureSummary.externalUrl !== "https://epicure.kaikaku.ai/about" ||
   !epicureSummary.ingredientSearch ||
   epicureSummary.providerStatuses !== 4 ||

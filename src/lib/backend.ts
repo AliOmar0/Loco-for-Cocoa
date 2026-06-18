@@ -53,6 +53,13 @@ export type AiRecipeRequest = {
   cuisine: string;
   specialRequests: string;
   avoidIngredients: string[];
+  directRecipe: string;
+  timeTarget: "quick" | "standard" | "weekend" | "overnight";
+  equipment: Array<
+    "one-bowl" | "no-mixer" | "food-processor" | "stovetop" | "freezer" | "oven"
+  >;
+  occasion: "weeknight" | "party" | "gift" | "brunch" | "prep-ahead";
+  finishStyle: "rustic" | "glossy" | "bakery" | "minimal" | "dramatic";
   pairingIntent: "comfort" | "balanced" | "adventurous";
   sweetness: number;
   texture: "fudgy" | "creamy" | "crisp" | "airy" | "chewy";

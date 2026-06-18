@@ -67,6 +67,149 @@ const sweetStartingPoints = [
   "miso",
 ];
 
+type EpicureTimeTarget = "quick" | "standard" | "weekend" | "overnight";
+type EpicureEquipment =
+  | "one-bowl"
+  | "no-mixer"
+  | "food-processor"
+  | "stovetop"
+  | "freezer"
+  | "oven";
+type EpicureOccasion = "weeknight" | "party" | "gift" | "brunch" | "prep-ahead";
+type EpicureFinishStyle = "rustic" | "glossy" | "bakery" | "minimal" | "dramatic";
+
+const directRecipePresets: Array<{
+  label: string;
+  description: string;
+  directRecipe: string;
+  anchors: string[];
+  category: RecipeCategory;
+  complexity: RecipeDifficulty;
+  texture: EpicureBrief["texture"];
+  timeTarget: EpicureTimeTarget;
+  equipment: EpicureEquipment[];
+  occasion: EpicureOccasion;
+  finishStyle: EpicureFinishStyle;
+  specialRequest: string;
+}> = [
+  {
+    label: "One-bowl brownies",
+    description: "Fudgy, fast, cocoa-forward bars",
+    directRecipe: "one-bowl fudgy brownies",
+    anchors: ["cocoa", "dark_chocolate"],
+    category: "cookie",
+    complexity: "Easy",
+    texture: "fudgy",
+    timeTarget: "quick",
+    equipment: ["one-bowl", "oven"],
+    occasion: "weeknight",
+    finishStyle: "glossy",
+    specialRequest: "Keep it one-bowl with minimal dishes and a crackly top.",
+  },
+  {
+    label: "No-bake truffles",
+    description: "Chilled bite-size dessert box",
+    directRecipe: "no-bake chocolate truffles",
+    anchors: ["cocoa", "cream_cheese"],
+    category: "no-bake",
+    complexity: "Easy",
+    texture: "creamy",
+    timeTarget: "overnight",
+    equipment: ["no-mixer", "freezer"],
+    occasion: "gift",
+    finishStyle: "bakery",
+    specialRequest: "Shape into polished truffles that can be gifted.",
+  },
+  {
+    label: "Molten mini cakes",
+    description: "Dramatic spoon-in dessert",
+    directRecipe: "molten chocolate mini cakes",
+    anchors: ["dark_chocolate", "espresso"],
+    category: "cake",
+    complexity: "Medium",
+    texture: "creamy",
+    timeTarget: "standard",
+    equipment: ["oven"],
+    occasion: "party",
+    finishStyle: "dramatic",
+    specialRequest: "Aim for a molten center and a plated restaurant-style finish.",
+  },
+  {
+    label: "Cookie skillet",
+    description: "Shareable gooey center, crisp edge",
+    directRecipe: "warm chocolate chip cookie skillet",
+    anchors: ["chocolate", "brown_butter"],
+    category: "cookie",
+    complexity: "Easy",
+    texture: "chewy",
+    timeTarget: "quick",
+    equipment: ["one-bowl", "oven"],
+    occasion: "party",
+    finishStyle: "rustic",
+    specialRequest: "Bake as a shareable skillet dessert with crisp edges.",
+  },
+  {
+    label: "Breakfast cocoa oats",
+    description: "Sweet but practical morning bowl",
+    directRecipe: "chocolate breakfast baked oats",
+    anchors: ["cocoa", "oat", "banana"],
+    category: "breakfast",
+    complexity: "Easy",
+    texture: "airy",
+    timeTarget: "quick",
+    equipment: ["one-bowl", "oven"],
+    occasion: "brunch",
+    finishStyle: "minimal",
+    specialRequest: "Keep it breakfast-friendly and not too sweet.",
+  },
+  {
+    label: "Weekend layer cake",
+    description: "Tall, frosted, celebration-ready",
+    directRecipe: "chocolate celebration layer cake",
+    anchors: ["cocoa", "buttermilk"],
+    category: "cake",
+    complexity: "Project",
+    texture: "airy",
+    timeTarget: "weekend",
+    equipment: ["no-mixer", "oven"],
+    occasion: "party",
+    finishStyle: "bakery",
+    specialRequest: "Make it celebration-worthy with clean layers and a stable frosting.",
+  },
+];
+
+const timeTargetOptions: Array<[EpicureTimeTarget, string, string]> = [
+  ["quick", "Under 30", "Fast craving"],
+  ["standard", "45-60 min", "Normal bake"],
+  ["weekend", "Weekend", "Project energy"],
+  ["overnight", "Chill ahead", "Make-ahead"],
+];
+
+const equipmentOptions: Array<[EpicureEquipment, string]> = [
+  ["one-bowl", "One bowl"],
+  ["no-mixer", "No mixer"],
+  ["food-processor", "Processor"],
+  ["stovetop", "Stovetop"],
+  ["freezer", "Freezer"],
+  ["oven", "Oven"],
+];
+
+const occasionOptions: Array<[EpicureOccasion, string]> = [
+  ["weeknight", "Weeknight"],
+  ["party", "Party"],
+  ["gift", "Gift box"],
+  ["brunch", "Brunch"],
+  ["prep-ahead", "Prep ahead"],
+];
+
+const finishStyleOptions: Array<[EpicureFinishStyle, string]> = [
+  ["rustic", "Rustic"],
+  ["glossy", "Glossy"],
+  ["bakery", "Bakery"],
+  ["minimal", "Minimal"],
+  ["dramatic", "Dramatic"],
+];
+
 type EpicureBrief = {
   ingredients: string[];
   category: RecipeCategory;
@@ -75,6 +218,11 @@ type EpicureBrief = {
   cuisine: string;
   specialRequests: string;
   avoidIngredients: string[];
+  directRecipe: string;
+  timeTarget: EpicureTimeTarget;
+  equipment: EpicureEquipment[];
+  occasion: EpicureOccasion;
+  finishStyle: EpicureFinishStyle;
   pairingIntent: "comfort" | "balanced" | "adventurous";
   sweetness: number;
   texture: "fudgy" | "creamy" | "crisp" | "airy" | "chewy";
@@ -202,6 +350,11 @@ export function EpicureLab({
       cuisine: "",
       specialRequests: "",
       avoidIngredients: [],
+      directRecipe: "",
+      timeTarget: "standard",
+      equipment: [],
+      occasion: "weeknight",
+      finishStyle: "bakery",
       pairingIntent: "balanced",
       sweetness: 3,
       texture: "fudgy",
@@ -342,6 +495,42 @@ export function EpicureLab({
     setQuery("");
     setPairings(null);
     setGenerated(null);
+  };
+
+  const toggleEquipment = (value: EpicureEquipment) => {
+    setBrief((current) => ({
+      ...current,
+      equipment: current.equipment.includes(value)
+        ? current.equipment.filter((item) => item !== value)
+        : [...current.equipment, value],
+    }));
+  };
+
+  const applyDirectRecipePreset = (preset: (typeof directRecipePresets)[number]) => {
+    setBrief((current) => {
+      const anchors = Array.from(
+        new Set([...current.ingredients, ...preset.anchors.map(ingredientName)]),
+      ).slice(0, 12);
+      const requests = [current.specialRequests, preset.specialRequest]
+        .map((item) => item.trim())
+        .filter(Boolean);
+      return {
+        ...current,
+        ingredients: anchors,
+        category: preset.category,
+        complexity: preset.complexity,
+        texture: preset.texture,
+        timeTarget: preset.timeTarget,
+        equipment: preset.equipment,
+        occasion: preset.occasion,
+        finishStyle: preset.finishStyle,
+        directRecipe: preset.directRecipe,
+        specialRequests: Array.from(new Set(requests)).join(" "),
+      };
+    });
+    setPairings(null);
+    setGenerated(null);
+    setStatus(`${preset.label} brief loaded. Adjust anything before generating.`);
   };
 
   const requestPairings = async () => {
@@ -675,10 +864,29 @@ export function EpicureLab({
               <small>02</small>
             </span>
             <div>
-              <h4>Direct the recipe</h4>
-              <p>Give the model enough constraint to produce something bakeable.</p>
+              <h4>Choose the dessert path</h4>
+              <p>Start with a direct recipe idea, then tune the constraints.</p>
             </div>
           </div>
+
+          <fieldset>
+            <legend>Direct recipes</legend>
+            <div className="epicure-preset-grid">
+              {directRecipePresets.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.directRecipe}
+                  className={
+                    brief.directRecipe === preset.directRecipe ? "is-active" : ""
+                  }
+                  onClick={() => applyDirectRecipePreset(preset)}
+                >
+                  <strong>{preset.label}</strong>
+                  <small>{preset.description}</small>
+                </button>
+              ))}
+            </div>
+          </fieldset>
 
           <fieldset>
             <legend>Sweet format</legend>
@@ -721,6 +929,25 @@ export function EpicureLab({
                   </button>
                 ),
               )}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Time target</legend>
+            <div className="epicure-segmented-control epicure-time-targets">
+              {timeTargetOptions.map(([value, label, hint]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={brief.timeTarget === value ? "is-active" : ""}
+                  onClick={() =>
+                    setBrief((current) => ({ ...current, timeTarget: value }))
+                  }
+                >
+                  <span>{label}</span>
+                  <small>{hint}</small>
+                </button>
+              ))}
             </div>
           </fieldset>
 
@@ -797,7 +1024,72 @@ export function EpicureLab({
             </small>
           </label>
 
+          <fieldset>
+            <legend>Kitchen constraints</legend>
+            <div className="epicure-chip-grid">
+              {equipmentOptions.map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={brief.equipment.includes(value) ? "is-active" : ""}
+                  onClick={() => toggleEquipment(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Occasion</legend>
+            <div className="epicure-chip-grid">
+              {occasionOptions.map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={brief.occasion === value ? "is-active" : ""}
+                  onClick={() =>
+                    setBrief((current) => ({ ...current, occasion: value }))
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Finish style</legend>
+            <div className="epicure-chip-grid">
+              {finishStyleOptions.map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={brief.finishStyle === value ? "is-active" : ""}
+                  onClick={() =>
+                    setBrief((current) => ({ ...current, finishStyle: value }))
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
           <div className="epicure-brief-fields">
+            <label>
+              <span>Recipe target</span>
+              <input
+                value={brief.directRecipe}
+                onChange={(event) =>
+                  setBrief((current) => ({
+                    ...current,
+                    directRecipe: event.target.value,
+                  }))
+                }
+                placeholder="Brownies, truffles, lava cake..."
+              />
+            </label>
             <label>
               <span>Servings</span>
               <input

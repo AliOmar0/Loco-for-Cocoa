@@ -10,6 +10,29 @@ export const recipeGenerationRequestSchema = z.object({
   cuisine: z.string().max(120).default(""),
   specialRequests: z.string().max(1200).default(""),
   avoidIngredients: z.array(z.string().min(1).max(120)).max(20).default([]),
+  directRecipe: z.string().max(120).default(""),
+  timeTarget: z
+    .enum(["quick", "standard", "weekend", "overnight"])
+    .default("standard"),
+  equipment: z
+    .array(
+      z.enum([
+        "one-bowl",
+        "no-mixer",
+        "food-processor",
+        "stovetop",
+        "freezer",
+        "oven",
+      ]),
+    )
+    .max(6)
+    .default([]),
+  occasion: z
+    .enum(["weeknight", "party", "gift", "brunch", "prep-ahead"])
+    .default("weeknight"),
+  finishStyle: z
+    .enum(["rustic", "glossy", "bakery", "minimal", "dramatic"])
+    .default("bakery"),
   pairingIntent: z
     .enum(["comfort", "balanced", "adventurous"])
     .default("balanced"),
@@ -349,6 +372,8 @@ async function generateRecipeWithDeepSeek(
   const system = `You are the recipe development engine for Loco for Cocoa, an editorial sweets archive.
 Create reliable, food-safe recipes with sound baking ratios and precise measurements.
 The supplied Epicure graph comes from a 4.14M-recipe ingredient embedding model. Use its bridges for interesting pairings, but do not force every suggestion.
+If directRecipe is provided, treat it as the requested dessert, not a loose inspiration.
+Respect timeTarget, equipment, occasion, finishStyle, sweetness, texture, and avoidIngredients.
 Return valid JSON only. Nutrition is an estimate per serving and must be internally consistent with the ingredient quantities.
 Every ingredient needs a readable display string, a plain USDA-searchable name, and its approximate gram weight.
 Do not claim medical benefits. Avoid unsafe raw flour or raw egg instructions.

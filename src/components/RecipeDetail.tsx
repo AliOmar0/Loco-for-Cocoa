@@ -6,43 +6,32 @@ import {
   ChefHat,
   Clock3,
   Copy,
-  Dices,
   Heart,
   Languages,
   LoaderCircle,
-  Mic,
   Minus,
   Plus,
   Play,
   Printer,
   RotateCw,
-  Scale,
   Share2,
   Sparkles,
   TimerReset,
-  Video,
-  X,
   Zap,
 } from "lucide-react";
-import { AnimatePresence, motion } from "motion/react";
+import { motion } from "motion/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { formatTime, moodLabels, scaleIngredient } from "../lib/recipe";
 import {
-  absurdUnit,
-  dietaryLabels,
-  filterSubstitutions,
   messLabels,
   pulseFeedback,
-  substitutionsFor,
 } from "../lib/recipeExtras";
 import { useExperienceStore } from "../store/useExperienceStore";
 import type {
   BakeTimerState,
-  DietaryTag,
   Recipe,
   RecipeStep,
   RecipeTranslation,
-  SubstitutionOption,
 } from "../types";
 import { RecipeImage } from "./RecipeImage";
 
@@ -70,14 +59,7 @@ const recipeCopy = {
     steps: "Steps",
     servings: "Servings",
     sweetPeople: "sweet people",
-    yieldPersonality: "Yield personality",
-    realisticYield: "One pan, eaten over the sink",
-    politePortions: "polite portions",
-    realistic: "Realistic",
-    polite: "Polite",
     whatYouNeed: "What you need",
-    hideExtras: "Hide extras",
-    kitchenExtras: "Kitchen extras",
     saved: "Saved",
     save: "Save",
     share: "Share",
@@ -111,14 +93,7 @@ const recipeCopy = {
     steps: "الخطوات",
     servings: "الحصص",
     sweetPeople: "أشخاص محبون للحلوى",
-    yieldPersonality: "حجم الحصة",
-    realisticYield: "صينية واحدة تؤكل مباشرة من المطبخ",
-    politePortions: "حصص مهذبة",
-    realistic: "واقعية",
-    polite: "مهذبة",
     whatYouNeed: "المكونات",
-    hideExtras: "إخفاء الخيارات",
-    kitchenExtras: "خيارات إضافية",
     saved: "محفوظة",
     save: "حفظ",
     share: "مشاركة",
@@ -209,24 +184,6 @@ function StepTimer({
   );
 }
 
-type BrowserSpeechRecognition = {
-  continuous: boolean;
-  interimResults: boolean;
-  lang: string;
-  start: () => void;
-  stop: () => void;
-  onresult: ((event: {
-    results: ArrayLike<{ 0: { transcript: string } }>;
-  }) => void) | null;
-  onend: (() => void) | null;
-};
-
-type SpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
-
-type FaceDetectorInstance = {
-  detect: (video: HTMLVideoElement) => Promise<Array<{ boundingBox: DOMRect }>>;
-};
-
 async function copyText(text: string) {
   if (window.isSecureContext && navigator.clipboard?.writeText) {
     await navigator.clipboard.writeText(text);
@@ -272,27 +229,11 @@ export function RecipeDetail({
   const checkedIngredients = session?.checkedIngredients ?? [];
   const bakeMode = session?.bakeMode ?? false;
   const activeStep = session?.activeStep ?? 0;
-  const realisticPortions = session?.realisticPortions ?? false;
   const [wakeLock, setWakeLock] = useState<WakeLockSentinel | null>(null);
-  const [dietaryFilters, setDietaryFilters] = useState<DietaryTag[]>([]);
-  const [chaoticIngredients, setChaoticIngredients] = useState<number[]>([]);
-  const [substitution, setSubstitution] = useState<{
-    ingredient: string;
-    option: SubstitutionOption;
-  } | null>(null);
-  const [voiceActive, setVoiceActive] = useState(false);
-  const [gestureActive, setGestureActive] = useState(false);
-  const [extrasOpen, setExtrasOpen] = useState(false);
   const [shareState, setShareState] = useState<
     "idle" | "shared" | "copied" | "error"
   >("idle");
   const shareResetTimer = useRef(0);
-  const recognitionRef = useRef<BrowserSpeechRecognition | null>(null);
-  const gestureVideo = useRef<HTMLVideoElement>(null);
-  const gestureStream = useRef<MediaStream | null>(null);
-  const gestureFrame = useRef(0);
-  const lastFaceY = useRef<number | null>(null);
-  const activeStepRef = useRef(activeStep);
   const isArabic = language === "ar" && Boolean(translation);
   const copy = recipeCopy[language];
   const displayRecipe = useMemo<Recipe>(() => {
@@ -313,10 +254,6 @@ export function RecipeDetail({
   }, [isArabic, recipe, translation]);
 
   useEffect(() => {
-    activeStepRef.current = activeStep;
-  }, [activeStep]);
-
-  useEffect(() => {
     if (!recipe) return;
     if (!useExperienceStore.getState().bakeSessions[recipe.id]) {
       updateBakeSession(recipe.id, {
@@ -332,7 +269,6 @@ export function RecipeDetail({
   }, [bakeSessions, recipe, updateBakeSession]);
 
   useEffect(() => {
-    setChaoticIngredients([]);
     setShareState("idle");
   }, [recipe?.id]);
 
@@ -340,9 +276,6 @@ export function RecipeDetail({
     () => () => {
       window.clearTimeout(shareResetTimer.current);
       wakeLock?.release().catch(() => undefined);
-      recognitionRef.current?.stop();
-      window.cancelAnimationFrame(gestureFrame.current);
-      gestureStream.current?.getTracks().forEach((track) => track.stop());
     },
     [wakeLock],
   );
@@ -434,163 +367,6 @@ export function RecipeDetail({
       : [...completed, index];
     updateBakeSession(recipe.id, { completed: next });
     pulseFeedback(comfort.sounds);
-  };
-
-  const spinSubstitution = (ingredient: string) => {
-    if (!recipe) return;
-    const available = filterSubstitutions(
-      substitutionsFor(recipe, ingredient),
-      dietaryFilters,
-    );
-    const options = available.length
-      ? available
-      : substitutionsFor(recipe, ingredient);
-    if (!options.length) {
-      setSubstitution({
-        ingredient,
-        option: {
-          label: "A tactical trip to the store",
-          amount: "one pair of shoes",
-          note: "The roulette found no responsible replacement for this one.",
-          dietary: [],
-          reliable: false,
-        },
-      });
-      return;
-    }
-    setSubstitution({
-      ingredient,
-      option: options[Math.floor(Math.random() * options.length)],
-    });
-  };
-
-  const runVoiceCommand = (command: string) => {
-    if (!recipe) return;
-    const normalized = command.toLowerCase();
-    if (
-      normalized.includes("next step") ||
-      normalized.includes("الخطوة التالية") ||
-      normalized.includes("التالي")
-    ) {
-      setStep(activeStep + 1);
-    } else if (
-      normalized.includes("previous step") ||
-      normalized.includes("الخطوة السابقة") ||
-      normalized.includes("السابق")
-    ) {
-      setStep(activeStep - 1);
-    } else if (
-      normalized.includes("check ingredient") ||
-      normalized.includes("حدد المكون") ||
-      normalized.includes("علّم المكون")
-    ) {
-      const next = recipe.ingredients.findIndex(
-        (_, index) => !checkedIngredients.includes(index),
-      );
-      if (next >= 0) toggleIngredient(next);
-    } else if (
-      normalized.includes("complete step") ||
-      normalized.includes("أكمل الخطوة")
-    ) {
-      toggleStep(activeStep);
-    } else if (
-      normalized.includes("start timer") ||
-      normalized.includes("ابدأ المؤقت")
-    ) {
-      const step = recipe.steps[activeStep];
-      if (step.duration) {
-        updateTimer(recipe.id, activeStep, {
-          remaining: step.duration * 60,
-          running: true,
-          updatedAt: Date.now(),
-        });
-      }
-    }
-  };
-
-  const toggleVoice = () => {
-    const speechWindow = window as Window & {
-      SpeechRecognition?: SpeechRecognitionConstructor;
-      webkitSpeechRecognition?: SpeechRecognitionConstructor;
-    };
-    if (voiceActive) {
-      recognitionRef.current?.stop();
-      setVoiceActive(false);
-      return;
-    }
-    const Recognition =
-      speechWindow.SpeechRecognition || speechWindow.webkitSpeechRecognition;
-    if (!Recognition) return;
-    const recognition = new Recognition();
-    recognition.continuous = true;
-    recognition.interimResults = false;
-    recognition.lang = language === "ar" ? "ar-SA" : "en-US";
-    recognition.onresult = (event) => {
-      const latest = event.results[event.results.length - 1];
-      runVoiceCommand(latest[0].transcript);
-    };
-    recognition.onend = () => setVoiceActive(false);
-    recognitionRef.current = recognition;
-    recognition.start();
-    setVoiceActive(true);
-  };
-
-  const stopGestureMode = () => {
-    window.cancelAnimationFrame(gestureFrame.current);
-    gestureStream.current?.getTracks().forEach((track) => track.stop());
-    gestureStream.current = null;
-    lastFaceY.current = null;
-    setGestureActive(false);
-  };
-
-  const toggleGestureMode = async () => {
-    if (gestureActive) {
-      stopGestureMode();
-      return;
-    }
-    const detectorWindow = window as Window & {
-      FaceDetector?: new (options?: {
-        fastMode?: boolean;
-        maxDetectedFaces?: number;
-      }) => FaceDetectorInstance;
-    };
-    if (!detectorWindow.FaceDetector || !navigator.mediaDevices?.getUserMedia) {
-      return;
-    }
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "user", width: 320, height: 240 },
-      audio: false,
-    });
-    gestureStream.current = stream;
-    const video = gestureVideo.current;
-    if (!video) return;
-    video.srcObject = stream;
-    await video.play();
-    const detector = new detectorWindow.FaceDetector({
-      fastMode: true,
-      maxDetectedFaces: 1,
-    });
-    setGestureActive(true);
-    let lastAdvance = 0;
-    const detect = async () => {
-      try {
-        const faces = await detector.detect(video);
-        const y = faces[0]?.boundingBox.y;
-        if (typeof y === "number" && lastFaceY.current !== null) {
-          const delta = y - lastFaceY.current;
-          if (delta > 18 && Date.now() - lastAdvance > 1300) {
-          setStep(activeStepRef.current + 1);
-            lastAdvance = Date.now();
-          }
-        }
-        if (typeof y === "number") lastFaceY.current = y;
-      } catch {
-        stopGestureMode();
-        return;
-      }
-      gestureFrame.current = window.requestAnimationFrame(detect);
-    };
-    detect();
   };
 
   const finishRecipe = async () => {
@@ -739,148 +515,11 @@ export function RecipeDetail({
                   </div>
                 </div>
 
-                <div className="portion-personality">
-                  <div>
-                    <span>{copy.yieldPersonality}</span>
-                    <strong>
-                      {realisticPortions
-                        ? displayRecipe.realisticYield || copy.realisticYield
-                        : `${servings} ${copy.politePortions}`}
-                    </strong>
-                  </div>
-                  <button
-                    className={realisticPortions ? "is-realistic" : ""}
-                    onClick={() =>
-                      updateBakeSession(recipe.id, {
-                        realisticPortions: !realisticPortions,
-                      })
-                    }
-                  >
-                    {realisticPortions ? copy.realistic : copy.polite}
-                  </button>
-                </div>
-
                 <div className="ingredient-heading">
                   <h3>{copy.whatYouNeed}</h3>
-                  <button
-                    className={extrasOpen ? "is-active" : ""}
-                    onClick={() => {
-                      setExtrasOpen((current) => {
-                        if (current) setSubstitution(null);
-                        return !current;
-                      });
-                    }}
-                    aria-expanded={extrasOpen}
-                  >
-                    <Sparkles size={14} />
-                    {extrasOpen ? copy.hideExtras : copy.kitchenExtras}
-                  </button>
                 </div>
 
-                <AnimatePresence initial={false}>
-                  {extrasOpen && (
-                    <motion.div
-                      className="recipe-extras-panel"
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: "auto" }}
-                      exit={{ opacity: 0, height: 0 }}
-                    >
-                      <button
-                        className={`extras-chaos-toggle ${
-                          chaoticIngredients.length === recipe.ingredients.length
-                            ? "is-active"
-                            : ""
-                        }`}
-                        onClick={() =>
-                          setChaoticIngredients((current) =>
-                            current.length === recipe.ingredients.length
-                              ? []
-                              : recipe.ingredients.map((_, index) => index),
-                          )
-                        }
-                      >
-                        <Scale size={14} />
-                        {chaoticIngredients.length === recipe.ingredients.length
-                          ? "Restore standard units"
-                          : "Convert every unit to chaos"}
-                      </button>
-                      <div className="dietary-filters">
-                        <span>Emergency substitution filters</span>
-                        <div>
-                          {(Object.keys(dietaryLabels) as DietaryTag[]).map((tag) => (
-                            <button
-                              key={tag}
-                              className={
-                                dietaryFilters.includes(tag) ? "is-active" : ""
-                              }
-                              onClick={() =>
-                                setDietaryFilters((current) =>
-                                  current.includes(tag)
-                                    ? current.filter((item) => item !== tag)
-                                    : [...current, tag],
-                                )
-                              }
-                            >
-                              {dietaryLabels[tag]}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-                      <p>
-                        Use the scale and dice controls beside an ingredient for
-                        absurd measurements or a practical substitution.
-                      </p>
-                      {recipe.nutrition && (
-                        <section className="recipe-nutrition">
-                          <div>
-                            <span>Nutrition snapshot</span>
-                            <small>
-                              {recipe.nutrition.basis} · {recipe.nutrition.source}
-                            </small>
-                          </div>
-                          <dl>
-                            <div>
-                              <dt>Calories</dt>
-                              <dd>{recipe.nutrition.calories} kcal</dd>
-                            </div>
-                            <div>
-                              <dt>Protein</dt>
-                              <dd>{recipe.nutrition.protein} g</dd>
-                            </div>
-                            <div>
-                              <dt>Carbs</dt>
-                              <dd>{recipe.nutrition.carbohydrates} g</dd>
-                            </div>
-                            <div>
-                              <dt>Fat</dt>
-                              <dd>{recipe.nutrition.fat} g</dd>
-                            </div>
-                            <div>
-                              <dt>Sugar</dt>
-                              <dd>{recipe.nutrition.sugar} g</dd>
-                            </div>
-                            <div>
-                              <dt>Fiber</dt>
-                              <dd>{recipe.nutrition.fiber} g</dd>
-                            </div>
-                            <div>
-                              <dt>Sodium</dt>
-                              <dd>{recipe.nutrition.sodium} mg</dd>
-                            </div>
-                          </dl>
-                          <p>
-                            {recipe.nutrition.coverage
-                              ? `${recipe.nutrition.coverage}. `
-                              : ""}
-                            {recipe.nutrition.disclaimer}
-                          </p>
-                        </section>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-
-                <ul className={`ingredient-list ${extrasOpen ? "has-extras" : ""}`}>
+                <ul className="ingredient-list">
                   {displayRecipe.ingredients.map((ingredient, index) => {
                     const checked = checkedIngredients.includes(index);
                     return (
@@ -891,74 +530,79 @@ export function RecipeDetail({
                         aria-label={`${checked ? "Uncheck" : "Check"} ${ingredient}`}
                       >
                         <span>{checked && <Check size={13} />}</span>
-                        {chaoticIngredients.includes(index)
-                          ? absurdUnit(ingredient)
-                          : scaleIngredient(
-                              ingredient,
-                              realisticPortions ? 1 : servings / recipe.servings,
-                            )}
+                        {scaleIngredient(
+                          ingredient,
+                          servings / recipe.servings,
+                        )}
                       </button>
-                      {extrasOpen && (
-                        <>
-                          <button
-                            type="button"
-                            className={`unit-chaos-button ${
-                              chaoticIngredients.includes(index) ? "is-active" : ""
-                            }`}
-                            onClick={() =>
-                              setChaoticIngredients((current) =>
-                                current.includes(index)
-                                  ? current.filter((item) => item !== index)
-                                  : [...current, index],
-                              )
-                            }
-                            aria-label={`${
-                              chaoticIngredients.includes(index)
-                                ? "Restore standard units for"
-                                : "Convert to chaotic units for"
-                            } ${ingredient}`}
-                          >
-                            <Scale size={14} />
-                          </button>
-                          <button
-                            type="button"
-                            className="substitution-roulette"
-                            onClick={() => spinSubstitution(ingredient)}
-                            aria-label={`Spin emergency substitution for ${ingredient}`}
-                          >
-                            <Dices size={15} />
-                          </button>
-                        </>
-                      )}
                     </li>
                     );
                   })}
                 </ul>
 
-                <AnimatePresence>
-                  {extrasOpen && substitution && (
-                    <motion.div
-                      className={`substitution-result ${
-                        substitution.option.reliable ? "is-real" : "is-chaos"
-                      }`}
-                      initial={{ opacity: 0, y: 12, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8 }}
-                    >
-                      <button onClick={() => setSubstitution(null)} aria-label="Close substitution">
-                        <X size={14} />
-                      </button>
-                      <span>
-                        <RotateCw size={13} />
-                        Emergency substitution roulette
-                      </span>
-                      <small>Instead of {substitution.ingredient}</small>
-                      <strong>{substitution.option.label}</strong>
-                      <em>{substitution.option.amount}</em>
-                      <p>{substitution.option.note}</p>
-                    </motion.div>
+                <section
+                  className={`recipe-nutrition ${
+                    recipe.nutrition ? "" : "is-empty"
+                  }`}
+                >
+                  {recipe.nutrition ? (
+                    <>
+                    <div>
+                      <span>Nutrition snapshot</span>
+                      <small>
+                        {recipe.nutrition.basis} · {recipe.nutrition.source}
+                      </small>
+                    </div>
+                    <dl>
+                      <div>
+                        <dt>Calories</dt>
+                        <dd>{recipe.nutrition.calories} kcal</dd>
+                      </div>
+                      <div>
+                        <dt>Protein</dt>
+                        <dd>{recipe.nutrition.protein} g</dd>
+                      </div>
+                      <div>
+                        <dt>Carbs</dt>
+                        <dd>{recipe.nutrition.carbohydrates} g</dd>
+                      </div>
+                      <div>
+                        <dt>Fat</dt>
+                        <dd>{recipe.nutrition.fat} g</dd>
+                      </div>
+                      <div>
+                        <dt>Sugar</dt>
+                        <dd>{recipe.nutrition.sugar} g</dd>
+                      </div>
+                      <div>
+                        <dt>Fiber</dt>
+                        <dd>{recipe.nutrition.fiber} g</dd>
+                      </div>
+                      <div>
+                        <dt>Sodium</dt>
+                        <dd>{recipe.nutrition.sodium} mg</dd>
+                      </div>
+                    </dl>
+                    <p>
+                      {recipe.nutrition.coverage
+                        ? `${recipe.nutrition.coverage}. `
+                        : ""}
+                      {recipe.nutrition.disclaimer}
+                    </p>
+                    </>
+                  ) : (
+                    <>
+                      <div>
+                        <span>Nutrition snapshot</span>
+                        <small>Not calculated yet</small>
+                      </div>
+                      <p>
+                        Generate or edit this recipe in Studio to add a USDA or
+                        AI nutrition snapshot.
+                      </p>
+                    </>
                   )}
-                </AnimatePresence>
+                </section>
 
                 <div className="mess-meter">
                   <span>The kitchen disaster forecast</span>
@@ -1025,28 +669,6 @@ export function RecipeDetail({
                   </button>
                 </div>
 
-                {extrasOpen && <div className="hands-free-controls">
-                  <button
-                    className={voiceActive ? "is-active" : ""}
-                    onClick={toggleVoice}
-                  >
-                    <Mic size={16} />
-                    {voiceActive ? "Listening..." : "Voice controls"}
-                  </button>
-                  <button
-                    className={gestureActive ? "is-active" : ""}
-                    onClick={toggleGestureMode}
-                  >
-                    <Video size={16} />
-                    {gestureActive ? "Nod mode on" : "Hands covered mode"}
-                  </button>
-                  <p>
-                    Say “next step,” “check ingredient,” “complete step,” or
-                    “start timer.” On supported browsers, a strong downward nod
-                    advances the method.
-                  </p>
-                  <video ref={gestureVideo} muted playsInline aria-hidden="true" />
-                </div>}
               </aside>
 
               <section className="method-panel">
@@ -1147,7 +769,7 @@ export function RecipeDetail({
                       <li key={ingredient}>
                         {scaleIngredient(
                           ingredient,
-                          realisticPortions ? 1 : servings / recipe.servings,
+                          servings / recipe.servings,
                         )}
                       </li>
                     ))}
@@ -1211,7 +833,6 @@ export function RecipeDetail({
                   onClick={() => {
                     if (!recipe) return;
                     clearBakeSession(recipe.id);
-                    stopGestureMode();
                     onClose();
                   }}
                 >
