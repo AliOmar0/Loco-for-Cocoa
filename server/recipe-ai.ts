@@ -1,4 +1,4 @@
-import { put } from "@vercel/blob";
+import { list, put } from "@vercel/blob";
 import { z } from "zod";
 import type { EpicurePairings } from "./epicure.js";
 
@@ -44,6 +44,127 @@ export class RecipeAiError extends Error {
     this.name = "RecipeAiError";
     this.code = code;
     this.status = status;
+  }
+}
+
+type BlobStoreStatus = {
+  configured: boolean;
+  ready: boolean;
+  code?: string;
+  message?: string;
+};
+
+function getBlobToken() {
+  return process.env.BLOB_READ_WRITE_TOKEN?.trim() || "";
+}
+
+function getBlobTokenProblem(token: string) {
+  if (!token) {
+    return {
+      code: "BLOB_NOT_CONFIGURED",
+      message: "Thumbnail storage needs BLOB_READ_WRITE_TOKEN in the Vercel project.",
+      status: 503,
+    };
+  }
+  if (token.includes("...") || token.includes("…") || token.length < 40) {
+    return {
+      code: "BLOB_TOKEN_TRUNCATED",
+      message:
+        "BLOB_READ_WRITE_TOKEN looks copied from a shortened preview. Paste the full Vercel Blob read-write token value, save it for Production and Preview, then redeploy.",
+      status: 503,
+    };
+  }
+  return null;
+}
+
+function safeBlobErrorMessage(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message
+    .replace(/vercel_blob_rw_[A-Za-z0-9._-]+/g, "[redacted Blob token]")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function classifyBlobFailure(error: unknown) {
+  const detail = safeBlobErrorMessage(error);
+  const normalized = detail.toLowerCase();
+  if (/unauthori[sz]ed|forbidden|invalid token|token|401|403/.test(normalized)) {
+    return {
+      code: "BLOB_TOKEN_REJECTED",
+      status: 503,
+      message:
+        "Vercel Blob rejected BLOB_READ_WRITE_TOKEN. Reconnect the Blob store to this project, make sure the variable is assigned to Production and Preview, then redeploy.",
+      detail,
+    };
+  }
+  if (/not found|store|does not exist|disconnected|unknown/.test(normalized)) {
+    return {
+      code: "BLOB_STORE_UNAVAILABLE",
+      status: 503,
+      message:
+        "The Blob token is present, but Vercel could not find or access the connected Blob store. Reconnect the store in Vercel Storage, then redeploy.",
+      detail,
+    };
+  }
+  if (/quota|limit|exceeded|too large|payload|size/.test(normalized)) {
+    return {
+      code: "BLOB_LIMIT_REACHED",
+      status: 507,
+      message:
+        "The thumbnail was created, but Vercel Blob refused the upload because the store hit a size, quota, or request limit.",
+      detail,
+    };
+  }
+  if (/timeout|network|fetch failed|econn|socket|unreachable/.test(normalized)) {
+    return {
+      code: "BLOB_NETWORK_FAILED",
+      status: 502,
+      message:
+        "The thumbnail was created, but the server could not reach Vercel Blob. Retry in a moment.",
+      detail,
+    };
+  }
+  return {
+    code: "BLOB_UPLOAD_FAILED",
+    status: 502,
+    message:
+      "The thumbnail was created, but Vercel Blob could not store it. Check the Blob store connection and redeploy.",
+    detail,
+  };
+}
+
+export async function checkBlobStoreStatus(): Promise<BlobStoreStatus> {
+  const token = getBlobToken();
+  const problem = getBlobTokenProblem(token);
+  if (problem) {
+    return {
+      configured: Boolean(token),
+      ready: false,
+      code: problem.code,
+      message: problem.message,
+    };
+  }
+
+  try {
+    await list({
+      limit: 1,
+      prefix: "recipes/",
+      token,
+    });
+    return {
+      configured: true,
+      ready: true,
+    };
+  } catch (error) {
+    const failure = classifyBlobFailure(error);
+    return {
+      configured: true,
+      ready: false,
+      code: failure.code,
+      message: `${failure.message}${
+        failure.detail ? ` Blob said: ${failure.detail}` : ""
+      }`,
+    };
   }
 }
 
@@ -835,7 +956,7 @@ export async function generateRecipeThumbnail(
 ): Promise<{ url: string; provider: string }> {
   const apiKey = process.env.GEMINI_API_KEY?.trim();
   const pollinationsKey = process.env.POLLINATIONS_API_KEY?.trim();
-  const blobToken = process.env.BLOB_READ_WRITE_TOKEN?.trim();
+  const blobToken = getBlobToken();
   const googleFallbackEnabled =
     process.env.ENABLE_GOOGLE_IMAGE_FALLBACK === "true";
   const imagenFallbackEnabled =
@@ -848,11 +969,12 @@ export async function generateRecipeThumbnail(
       503,
     );
   }
-  if (!blobToken) {
+  const blobProblem = getBlobTokenProblem(blobToken);
+  if (blobProblem) {
     throw new RecipeAiError(
-      "BLOB_NOT_CONFIGURED",
-      "Thumbnail storage needs BLOB_READ_WRITE_TOKEN in the Vercel project.",
-      503,
+      blobProblem.code,
+      blobProblem.message,
+      blobProblem.status,
     );
   }
 
@@ -988,14 +1110,16 @@ export async function generateRecipeThumbnail(
     );
     return { url: blob.url, provider: generated.provider };
   } catch (error) {
+    const failure = classifyBlobFailure(error);
     console.error("Recipe thumbnail Blob upload failed", {
       provider: generated.provider,
-      message: error instanceof Error ? error.message : "Unknown Blob error",
+      code: failure.code,
+      message: failure.detail || "Unknown Blob error",
     });
     throw new RecipeAiError(
-      "BLOB_UPLOAD_FAILED",
-      "The thumbnail was created, but Vercel Blob could not store it. Reconnect the Blob store and retry.",
-      502,
+      failure.code,
+      `${failure.message}${failure.detail ? ` Blob said: ${failure.detail}` : ""}`,
+      failure.status,
     );
   }
 }

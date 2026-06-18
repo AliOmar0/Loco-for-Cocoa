@@ -5,6 +5,7 @@ import {
   preflight,
   publicError,
 } from "../../server/cors.js";
+import { checkBlobStoreStatus } from "../../server/recipe-ai.js";
 
 export default {
   async fetch(request: Request) {
@@ -22,21 +23,25 @@ export default {
       const googleImageEnabled =
         Boolean(process.env.GEMINI_API_KEY) &&
         process.env.ENABLE_GOOGLE_IMAGE_FALLBACK === "true";
+      const blob = await checkBlobStoreStatus();
       const missingImage = [
         ...(!process.env.POLLINATIONS_API_KEY &&
         !googleImageEnabled
           ? ["POLLINATIONS_API_KEY"]
           : []),
-        ...(!process.env.BLOB_READ_WRITE_TOKEN
+        ...(!blob.configured
           ? ["BLOB_READ_WRITE_TOKEN"]
           : []),
       ];
+      const imageRendererReady =
+        Boolean(process.env.POLLINATIONS_API_KEY) || googleImageEnabled;
       return json(request, {
         epicure: true,
         recipe: missingRecipe.length === 0,
         nutrition: missingNutrition.length === 0,
-        image: missingImage.length === 0,
+        image: imageRendererReady && blob.ready,
         freeImage: Boolean(process.env.POLLINATIONS_API_KEY),
+        blob,
         missing: {
           recipe: missingRecipe,
           nutrition: missingNutrition,

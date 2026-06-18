@@ -464,6 +464,10 @@
   color: #527a4c;
 }
 
+.epicure-lab .epicure-provider-strip > span.is-warning > svg {
+  color: #b26a26;
+}
+
 .epicure-lab .epicure-provider-strip > span > span {
   min-width: 0;
   overflow: hidden;
@@ -556,6 +560,25 @@
   font-size: 7px;
 }
 
+.epicure-provider-alert {
+  display: flex;
+  width: fit-content;
+  max-width: 100%;
+  margin: 10px 0 0;
+  padding: 9px 11px;
+  align-items: flex-start;
+  gap: 7px;
+  border: 1px solid rgba(178, 106, 38, 0.2);
+  border-radius: 12px;
+  background: rgba(255, 244, 224, 0.78);
+  color: #6d3b12;
+  line-height: 1.5;
+}
+
+.epicure-provider-alert svg {
+  flex: 0 0 auto;
+}
+
 @media (max-width: 1180px) {
   .epicure-lab .epicure-lab-grid {
     grid-auto-rows: auto;
@@ -637,6 +660,17 @@
 .epicure-provider-strip .is-ready i {
   background: #688f61;
   box-shadow: 0 0 0 4px rgba(104, 143, 97, 0.11);
+}
+
+.epicure-provider-strip > span.is-warning {
+  border-color: rgba(178, 106, 38, 0.28);
+  background: rgba(255, 244, 224, 0.76);
+  color: #6d3b12;
+}
+
+.epicure-provider-strip .is-warning i {
+  background: #b26a26;
+  box-shadow: 0 0 0 4px rgba(178, 106, 38, 0.11);
 }
 
 .epicure-provider-strip small {

@@ -104,6 +104,12 @@ export type AiProviderStatus = {
   nutrition: boolean;
   image: boolean;
   freeImage: boolean;
+  blob: {
+    configured: boolean;
+    ready: boolean;
+    code?: string;
+    message?: string;
+  };
   missing: {
     recipe: string[];
     nutrition: string[];

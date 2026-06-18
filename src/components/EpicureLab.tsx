@@ -164,6 +164,24 @@ function parseFallbackDraft(input: string): EpicureDraft {
   };
 }
 
+function imageProviderLabel(providers: AiProviderStatus | null) {
+  if (!providers) return "checking";
+  if (providers.image) return "ready";
+  if (!providers.freeImage) {
+    return providers.missing.image.includes("POLLINATIONS_API_KEY")
+      ? "add free image key"
+      : "renderer unavailable";
+  }
+  if (!providers.blob.configured) return "connect Blob";
+  if (!providers.blob.ready) {
+    if (providers.blob.code === "BLOB_TOKEN_TRUNCATED") return "full token needed";
+    if (providers.blob.code === "BLOB_TOKEN_REJECTED") return "token rejected";
+    if (providers.blob.code === "BLOB_LIMIT_REACHED") return "Blob limit";
+    return "fix Blob";
+  }
+  return "checking";
+}
+
 export function EpicureLab({
   authToken,
   storageKey,
@@ -226,7 +244,7 @@ export function EpicureLab({
   }, [authToken]);
 
   useEffect(() => {
-    if (providers && !providers.freeImage && brief.generateImage) {
+    if (providers && !providers.image && brief.generateImage) {
       setBrief((current) => ({ ...current, generateImage: false }));
     }
   }, [brief.generateImage, providers]);
@@ -304,6 +322,9 @@ export function EpicureLab({
     );
   }, [brief, providers?.recipe]);
 
+  const thumbnailReady = providers?.image ?? false;
+  const thumbnailDiagnostic = providers?.blob?.message || "";
+
   const addIngredient = (value: string) => {
     const normalized = ingredientName(value);
     if (!normalized) return;
@@ -370,6 +391,11 @@ export function EpicureLab({
       setPairings(result.pairings);
       setWarnings(result.warnings);
       setImageError(result.imageGeneration.message || "");
+      if (result.imageGeneration.code?.startsWith("BLOB")) {
+        void getAiProviderStatus(authToken)
+          .then(setProviders)
+          .catch(() => undefined);
+      }
       setStatus(
         `${result.recipe.title} is ready to review before it enters the editor.`,
       );
@@ -413,6 +439,11 @@ export function EpicureLab({
           : "The thumbnail could not be generated.";
       setImageError(message);
       setStatus(message);
+      if (/blob/i.test(message)) {
+        void getAiProviderStatus(authToken)
+          .then(setProviders)
+          .catch(() => undefined);
+      }
     } finally {
       setImageBusy(false);
     }
@@ -471,20 +502,22 @@ export function EpicureLab({
                 : "checking"}
           </small>
         </span>
-        <span className={providers?.freeImage ? "is-ready" : ""}>
+        <span
+          className={`${thumbnailReady ? "is-ready" : ""} ${
+            providers && !thumbnailReady ? "is-warning" : ""
+          }`}
+        >
           <ImageIcon size={16} />
           <span>AI thumbnail</span>
-          <small>
-            {providers?.freeImage
-              ? "free renderer ready"
-              : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
-                  ? "connect Blob"
-                  : providers?.missing.image.includes("POLLINATIONS_API_KEY")
-                    ? "add free image key"
-                  : "checking"}
-          </small>
+          <small>{imageProviderLabel(providers)}</small>
         </span>
       </div>
+      {providers && !thumbnailReady && thumbnailDiagnostic ? (
+        <p className="epicure-provider-help epicure-provider-alert">
+          <CircleAlert size={15} />
+          {thumbnailDiagnostic}
+        </p>
+      ) : null}
 
       <div className="epicure-brief-dashboard">
         <div className="epicure-readiness-ring">
@@ -878,8 +911,8 @@ export function EpicureLab({
             type="button"
             className={`epicure-image-toggle ${
               brief.generateImage ? "is-active" : ""
-            } ${providers && !providers.freeImage ? "is-unavailable" : ""}`}
-            disabled={Boolean(providers && !providers.freeImage)}
+            } ${providers && !thumbnailReady ? "is-unavailable" : ""}`}
+            disabled={Boolean(providers && !thumbnailReady)}
             onClick={() =>
               setBrief((current) => ({
                 ...current,
@@ -891,11 +924,9 @@ export function EpicureLab({
             <span>
               <strong>Generate an editorial thumbnail</strong>
               <small>
-                {providers?.freeImage
+                {thumbnailReady
                   ? "Free community rendering, stored in Vercel Blob"
-                  : providers?.missing.image.includes("BLOB_READ_WRITE_TOKEN")
-                    ? "Connect Vercel Blob to store generated thumbnails"
-                    : "Add a free Pollinations key; no card is required"}
+                  : imageProviderLabel(providers)}
               </small>
             </span>
             <i />
@@ -1097,7 +1128,7 @@ export function EpicureLab({
                     type="button"
                     disabled={
                       imageBusy ||
-                      !providers?.freeImage ||
+                      !thumbnailReady ||
                       generated.imagePrompt.trim().length < 10
                     }
                     onClick={requestThumbnail}
